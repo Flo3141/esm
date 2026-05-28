@@ -118,12 +118,12 @@ def main():
     print(f"Trainierbare Parameter: {trainable_params}")
 
     training_args = TrainingArguments(
-        output_dir="./trainer_logs",
+        output_dir="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output",
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
         evaluation_strategy="epoch",
-        logging_dir="./logs",
+        logging_dir="/beegfs/prj/RNA_NLP/protein_half_lives/esm_logs",
         logging_steps=10,
         learning_rate=args.learning_rate,
         # Deaktiviere Checkpointing, um nicht das komplette Modell zu speichern
