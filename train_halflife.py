@@ -122,14 +122,14 @@ def main():
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         logging_dir="/beegfs/prj/RNA_NLP/protein_half_lives/esm_logs",
         logging_steps=10,
         learning_rate=args.learning_rate,
         # Deaktiviere Checkpointing, um nicht das komplette Modell zu speichern
         save_strategy="no" 
     )
-
+    
     head_weights_path = os.path.join(args.cache_dir, f"regression_head_weights_fold_{args.fold}.pt")
     save_callback = SaveBestHeadCallback(head_weights_path)
 
