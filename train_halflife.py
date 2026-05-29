@@ -65,30 +65,38 @@ def compute_metrics(eval_pred):
 
     return {"mse": mse, "mae": mae, "r2": r2}
 
-def evaluate_predictions(checkpoint_dir):
+def evaluate_predictions(checkpoint_dir, fold_idx=None):
     res_text = ""
-    test_pred = os.path.join(checkpoint_dir, "test_predictions.csv")
+    pred_filename = f"test_predictions_fold_{fold_idx}.csv" if fold_idx is not None else "test_predictions.csv"
+    test_pred = os.path.join(checkpoint_dir, pred_filename)
     if not os.path.exists(test_pred):
-        print(f"Fehler: {test_pred} existiert nicht.")
-        return
+        raise FileNotFoundError(f"Fehler: {test_pred} existiert nicht.")
     df = pd.read_csv(test_pred)
     df_eval = df.drop(columns=['sequence'])
     predict_labels = df_eval["prediction"]
     true_labels = df_eval["label"]
     all_mse = np.mean((np.array(predict_labels) - np.array(true_labels)) ** 2)
-    all_prearson = df_eval.corr(method='pearson').iloc[0, 1]
+    all_pearson = df_eval.corr(method='pearson').iloc[0, 1]
     all_spearman = df_eval.corr(method='spearman').iloc[0, 1]
-    res_text = f"----- ESM Evaluation -----\n"
+    res_text = f"----- ESM Evaluation" + (f" (Fold {fold_idx})" if fold_idx is not None else "") + f" -----\n"
     res_text += f"MSE: {all_mse}\n"
-    res_text += f"Pearson: {all_prearson}\n"
+    res_text += f"Pearson: {all_pearson}\n"
     res_text += f"Spearman: {all_spearman}\n"
     
     print(res_text)
-    with open(os.path.join(checkpoint_dir, "esm_results.txt"), "w") as f:
+    out_filename = f"esm_results_fold_{fold_idx}.txt" if fold_idx is not None else "esm_results.txt"
+    with open(os.path.join(checkpoint_dir, out_filename), "w") as f:
         f.write(res_text)
+        
+    # Keep compatibility with default filename
+    if fold_idx is not None:
+        with open(os.path.join(checkpoint_dir, "esm_results.txt"), "w") as f:
+            f.write(res_text)
 
-def evaluate_on_test(args, tokenizer):
-    print(f"Starte Evaluierung auf Test-Splits [8, 9] für Fold {args.fold}...")
+    return {"mse": all_mse, "pearson": all_pearson, "spearman": all_spearman}
+
+def evaluate_on_test(args, tokenizer, fold_idx):
+    print(f"Starte Evaluierung auf Test-Splits [8, 9] für Fold {fold_idx}...")
     
     model = EsmForSequenceClassification.from_pretrained(
         args.model_name, 
@@ -96,7 +104,7 @@ def evaluate_on_test(args, tokenizer):
         cache_dir=args.cache_dir
     )
     
-    head_weights_path = os.path.join(args.cache_dir, f"regression_head_weights_fold_{args.fold}.pt")
+    head_weights_path = os.path.join(args.cache_dir, f"regression_head_weights_fold_{fold_idx}.pt")
     if not os.path.exists(head_weights_path):
         raise FileNotFoundError(f"Keine trainierten Gewichte unter {head_weights_path} gefunden!")
         
@@ -112,7 +120,7 @@ def evaluate_on_test(args, tokenizer):
     
     if len(test_dataset) == 0:
         print("Keine Testdaten vorhanden!")
-        return
+        return None
         
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
@@ -141,11 +149,15 @@ def evaluate_on_test(args, tokenizer):
         "label": labels
     })
     
-    test_pred_path = os.path.join(args.cache_dir, "test_predictions.csv")
+    test_pred_path = os.path.join(args.cache_dir, f"test_predictions_fold_{fold_idx}.csv")
     df_pred.to_csv(test_pred_path, index=False)
     print(f"Test-Vorhersagen gespeichert unter {test_pred_path}")
     
-    evaluate_predictions(args.cache_dir)
+    # Keep compatibility with default filename
+    compat_pred_path = os.path.join(args.cache_dir, "test_predictions.csv")
+    df_pred.to_csv(compat_pred_path, index=False)
+    
+    return evaluate_predictions(args.cache_dir, fold_idx=fold_idx)
 
 def main():
     parser = argparse.ArgumentParser(description="Train a Regression Head on ESM for Protein Half-life")
@@ -155,7 +167,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=3, help="Anzahl der Trainingsepochen")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch Größe")
     parser.add_argument("--learning_rate", type=float, default=5e-4, help="Lernrate für den Head")
-    parser.add_argument("--fold", type=int, default=0, help="Welcher Fold (0-3) trainiert werden soll.")
+    parser.add_argument("--fold", type=str, default="0", help="Welcher Fold (0-3) trainiert werden soll, oder 'all' für alle Folds nacheinander.")
     parser.add_argument("--only_eval", action="store_true", help="Führe nur die Evaluierung auf den Testdaten aus.")
     
     args = parser.parse_args()
@@ -166,8 +178,6 @@ def main():
     print(f"Lade Tokenizer: {args.model_name}")
     tokenizer = EsmTokenizer.from_pretrained(args.model_name, cache_dir=args.cache_dir)
     
-    print(f"Lade Datensatz: {args.csv_path}")
-    
     folds = {
         0: {'train': [0, 1, 2, 3, 4, 5], 'val': [6, 7]},
         1: {'train': [0, 1, 2, 3, 6, 7], 'val': [4, 5]},
@@ -175,65 +185,109 @@ def main():
         3: {'train': [2, 3, 4, 5, 6, 7], 'val': [0, 1]}
     }
     
-    if args.fold not in folds:
-        raise ValueError("Fold muss zwischen 0 und 3 liegen.")
+    if args.fold.lower() == "all":
+        folds_to_run = [0, 1, 2, 3]
+    else:
+        try:
+            fold_val = int(args.fold)
+            if fold_val not in folds:
+                raise ValueError
+            folds_to_run = [fold_val]
+        except ValueError:
+            raise ValueError("Fold muss eine Zahl zwischen 0 und 3 oder 'all' sein.")
 
-    train_splits = folds[args.fold]['train']
-    val_splits = folds[args.fold]['val']
-
-    train_dataset = ProteinHalfLifeDataset(args.csv_path, tokenizer, splits=train_splits)
-    eval_dataset = ProteinHalfLifeDataset(args.csv_path, tokenizer, splits=val_splits)
-    print(f"Trainingsbeispiele: {len(train_dataset)}, Validierungsbeispiele: {len(eval_dataset)}")
-
-    print(f"Lade Modell: {args.model_name}")
-    # num_labels=1 führt dazu, dass ein Regression Head (linearer Layer) erzeugt wird und MSE Loss verwendet wird.
-    model = EsmForSequenceClassification.from_pretrained(
-        args.model_name, 
-        num_labels=1, 
-        cache_dir=args.cache_dir
-    )
-
-    print("Friere Basis-Modell-Gewichte ein...")
-    # Alle Parameter des ESM-Encoders einfrieren
-    for param in model.esm.parameters():
-        param.requires_grad = False
-
-    trainable_params = [n for n, p in model.named_parameters() if p.requires_grad]
-    print(f"Trainierbare Parameter: {trainable_params}")
-
-    training_args = TrainingArguments(
-        output_dir="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output",
-        num_train_epochs=args.epochs,
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
-        eval_strategy="epoch",
-        logging_dir="/beegfs/prj/RNA_NLP/protein_half_lives/esm_logs",
-        logging_steps=10,
-        learning_rate=args.learning_rate,
-        # Deaktiviere Checkpointing, um nicht das komplette Modell zu speichern
-        save_strategy="no" 
-    )
-    
-    head_weights_path = os.path.join(args.cache_dir, f"regression_head_weights_fold_{args.fold}.pt")
-    save_callback = SaveBestHeadCallback(head_weights_path)
-
+    # 1. Training-Phase (nur falls nicht only_eval)
     if not args.only_eval:
-        trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=eval_dataset,
-            compute_metrics=compute_metrics,
-            callbacks=[save_callback]
-        )
+        print(f"Auszuführende Folds für Training: {folds_to_run}")
+        for fold_idx in folds_to_run:
+            print(f"\n==================== Starte Fold {fold_idx} ====================")
+            print(f"Lade Datensatz für Fold {fold_idx}: {args.csv_path}")
+            
+            train_splits = folds[fold_idx]['train']
+            val_splits = folds[fold_idx]['val']
 
-        print(f"Starte Training für Fold {args.fold}...")
-        trainer.train()
-        print("Training abgeschlossen! Die besten Gewichte wurden bereits basierend auf dem Validation Loss gespeichert.")
+            train_dataset = ProteinHalfLifeDataset(args.csv_path, tokenizer, splits=train_splits)
+            eval_dataset = ProteinHalfLifeDataset(args.csv_path, tokenizer, splits=val_splits)
+            print(f"Trainingsbeispiele: {len(train_dataset)}, Validierungsbeispiele: {len(eval_dataset)}")
+
+            print(f"Lade Modell für Fold {fold_idx}: {args.model_name}")
+            # num_labels=1 führt dazu, dass ein Regression Head (linearer Layer) erzeugt wird und MSE Loss verwendet wird.
+            model = EsmForSequenceClassification.from_pretrained(
+                args.model_name, 
+                num_labels=1, 
+                cache_dir=args.cache_dir
+            )
+
+            print("Friere Basis-Modell-Gewichte ein...")
+            # Alle Parameter des ESM-Encoders einfrieren
+            for param in model.esm.parameters():
+                param.requires_grad = False
+
+            trainable_params = [n for n, p in model.named_parameters() if p.requires_grad]
+            print(f"Trainierbare Parameter: {trainable_params}")
+
+            training_args = TrainingArguments(
+                output_dir="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output",
+                num_train_epochs=args.epochs,
+                per_device_train_batch_size=args.batch_size,
+                per_device_eval_batch_size=args.batch_size,
+                eval_strategy="epoch",
+                logging_dir="/beegfs/prj/RNA_NLP/protein_half_lives/esm_logs",
+                logging_steps=10,
+                learning_rate=args.learning_rate,
+                # Deaktiviere Checkpointing, um nicht das komplette Modell zu speichern
+                save_strategy="no" 
+            )
+            
+            head_weights_path = os.path.join(args.cache_dir, f"regression_head_weights_fold_{fold_idx}.pt")
+            save_callback = SaveBestHeadCallback(head_weights_path)
+
+            trainer = Trainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_dataset,
+                eval_dataset=eval_dataset,
+                compute_metrics=compute_metrics,
+                callbacks=[save_callback]
+            )
+
+            print(f"Starte Training für Fold {fold_idx}...")
+            trainer.train()
+            print(f"Training für Fold {fold_idx} abgeschlossen! Die besten Gewichte wurden bereits basierend auf dem Validation Loss gespeichert.")
     else:
         print("Überspringe Training. Starte nur Evaluierung...")
 
-    evaluate_on_test(args, tokenizer)
+    # 2. Evaluierungs-Phase (immer über alle 4 Folds)
+    print("\n==================== Starte Evaluierung für alle 4 Folds ====================")
+    all_metrics = []
+    for f_idx in [0, 1, 2, 3]:
+        metrics = evaluate_on_test(args, tokenizer, f_idx)
+        if metrics is not None:
+            all_metrics.append(metrics)
+
+    # 3. Berechne Mean und Std der Metriken und speichere sie ab
+    mses = [m["mse"] for m in all_metrics]
+    pearsons = [m["pearson"] for m in all_metrics]
+    spearmans = [m["spearman"] for m in all_metrics]
+
+    mean_mse = np.mean(mses)
+    std_mse = np.std(mses)
+    mean_pearson = np.mean(pearsons)
+    std_pearson = np.std(pearsons)
+    mean_spearman = np.mean(spearmans)
+    std_spearman = np.std(spearmans)
+
+    summary_text = "----- ESM Aggregated Evaluation (All 4 Folds) -----\n"
+    summary_text += f"MSE: Mean = {mean_mse:.6f}, Std = {std_mse:.6f}\n"
+    summary_text += f"Pearson: Mean = {mean_pearson:.6f}, Std = {std_pearson:.6f}\n"
+    summary_text += f"Spearman: Mean = {mean_spearman:.6f}, Std = {std_spearman:.6f}\n"
+
+    print("\n" + summary_text)
+
+    summary_file_path = os.path.join(args.cache_dir, "esm_aggregated_results.txt")
+    with open(summary_file_path, "w") as f:
+        f.write(summary_text)
+    print(f"Aggregierte Ergebnisse gespeichert unter {summary_file_path}")
 
 if __name__ == "__main__":
     main()
