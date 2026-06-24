@@ -65,33 +65,30 @@ def compute_metrics(eval_pred):
 
     return {"mse": mse, "mae": mae, "r2": r2}
 
-def evaluate_predictions(checkpoint_dir, fold_idx=None):
-    res_text = ""
-    pred_filename = f"test_predictions_fold_{fold_idx}.csv" if fold_idx is not None else "test_predictions.csv"
+def evaluate_predictions(checkpoint_dir, fold_idx):
+    pred_filename = f"test_predictions_fold_{fold_idx}.csv"
     test_pred = os.path.join(checkpoint_dir, pred_filename)
     if not os.path.exists(test_pred):
         raise FileNotFoundError(f"Fehler: {test_pred} existiert nicht.")
     df = pd.read_csv(test_pred)
-    df_eval = df.drop(columns=['sequence'])
-    predict_labels = df_eval["prediction"]
-    true_labels = df_eval["label"]
+    predict_labels = df["prediction"]
+    true_labels = df["label"]
     all_mse = np.mean((np.array(predict_labels) - np.array(true_labels)) ** 2)
-    all_pearson = df_eval.corr(method='pearson').iloc[0, 1]
-    all_spearman = df_eval.corr(method='spearman').iloc[0, 1]
-    res_text = f"----- ESM Evaluation" + (f" (Fold {fold_idx})" if fold_idx is not None else "") + f" -----\n"
+    all_pearson = predict_labels.corr(true_labels, method='pearson')
+    all_spearman = predict_labels.corr(true_labels, method='spearman')
+    res_text = f"----- ESM Evaluation (Fold {fold_idx}) -----\n"
     res_text += f"MSE: {all_mse}\n"
     res_text += f"Pearson: {all_pearson}\n"
     res_text += f"Spearman: {all_spearman}\n"
     
     print(res_text)
-    out_filename = f"esm_results_fold_{fold_idx}.txt" if fold_idx is not None else "esm_results.txt"
+    out_filename = f"esm_results_fold_{fold_idx}.txt"
     with open(os.path.join(checkpoint_dir, out_filename), "w") as f:
         f.write(res_text)
         
     # Keep compatibility with default filename
-    if fold_idx is not None:
-        with open(os.path.join(checkpoint_dir, "esm_results.txt"), "w") as f:
-            f.write(res_text)
+    with open(os.path.join(checkpoint_dir, "esm_results.txt"), "w") as f:
+        f.write(res_text)
 
     return {"mse": all_mse, "pearson": all_pearson, "spearman": all_spearman}
 
@@ -142,22 +139,22 @@ def evaluate_on_test(args, tokenizer, fold_idx):
             labels.extend(batch['labels'].numpy().tolist())
             
     sequences = test_dataset.data['AA'].tolist()
+    tids = test_dataset.data['tid'].tolist()
+    genes = test_dataset.data['gene'].tolist()
     
     df_pred = pd.DataFrame({
+        "tid": tids,
+        "gene": genes,
         "sequence": sequences,
         "prediction": predictions,
         "label": labels
     })
     
-    test_pred_path = os.path.join(args.cache_dir, f"test_predictions_fold_{fold_idx}.csv")
+    test_pred_path = os.path.join(args.output_dir, f"test_predictions_fold_{fold_idx}.csv")
     df_pred.to_csv(test_pred_path, index=False)
     print(f"Test-Vorhersagen gespeichert unter {test_pred_path}")
     
-    # Keep compatibility with default filename
-    compat_pred_path = os.path.join(args.cache_dir, "test_predictions.csv")
-    df_pred.to_csv(compat_pred_path, index=False)
-    
-    return evaluate_predictions(args.cache_dir, fold_idx=fold_idx)
+    return evaluate_predictions(args.output_dir, fold_idx=fold_idx)
 
 def main():
     parser = argparse.ArgumentParser(description="Train a Regression Head on ESM for Protein Half-life")
@@ -169,11 +166,13 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=5e-4, help="Lernrate für den Head")
     parser.add_argument("--fold", type=str, default="0", help="Welcher Fold (0-3) trainiert werden soll, oder 'all' für alle Folds nacheinander.")
     parser.add_argument("--only_eval", action="store_true", help="Führe nur die Evaluierung auf den Testdaten aus.")
+    parser.add_argument("--output_dir", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output", help="Ausgabeverzeichnis für die Ergebnisse")
     
     args = parser.parse_args()
 
     os.environ['TRANSFORMERS_CACHE'] = args.cache_dir
     os.environ['HF_HOME'] = args.cache_dir
+    os.makedirs(args.output_dir, exist_ok=True)
 
     print(f"Lade Tokenizer: {args.model_name}")
     tokenizer = EsmTokenizer.from_pretrained(args.model_name, cache_dir=args.cache_dir)
@@ -227,7 +226,7 @@ def main():
             print(f"Trainierbare Parameter: {trainable_params}")
 
             training_args = TrainingArguments(
-                output_dir="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output",
+                output_dir=args.output_dir,
                 num_train_epochs=args.epochs,
                 per_device_train_batch_size=args.batch_size,
                 per_device_eval_batch_size=args.batch_size,
@@ -284,7 +283,7 @@ def main():
 
     print("\n" + summary_text)
 
-    summary_file_path = os.path.join(args.cache_dir, "esm_aggregated_results.txt")
+    summary_file_path = os.path.join(args.output_dir, "esm_aggregated_results.txt")
     with open(summary_file_path, "w") as f:
         f.write(summary_text)
     print(f"Aggregierte Ergebnisse gespeichert unter {summary_file_path}")
