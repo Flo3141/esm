@@ -246,13 +246,52 @@ def run_analysis(args):
         plt.boxplot(data_to_plot, labels=labels)
         plt.axhline(0, color='gray', linestyle='--', linewidth=0.8)
         plt.ylabel('Delta Predicted Half-life (Mutated - WT)')
-        plt.title('Impact of Mutations on Predicted Protein Half-life')
+        plt.title('Impact of Mutations on Predicted Protein Half-life (Boxplot)')
         plt.grid(True, alpha=0.3)
         
         boxplot_path = os.path.join(args.output_dir, "variant_prediction_analysis.png")
         plt.savefig(boxplot_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Boxplot gespeichert unter {boxplot_path}")
+        
+        # 1b. Violin plot of Delta Halflife
+        plt.figure(figsize=(8, 6))
+        data_to_plot_val = []
+        if len(benign) > 0:
+            data_to_plot_val.append(benign['delta_halflife'].dropna().values)
+        if len(pathogenic) > 0:
+            data_to_plot_val.append(pathogenic['delta_halflife'].dropna().values)
+            
+        if data_to_plot_val:
+            parts = plt.violinplot(data_to_plot_val, showmeans=False, showmedians=True, showextrema=True)
+            
+            colors = []
+            if len(benign) > 0:
+                colors.append('green')
+            if len(pathogenic) > 0:
+                colors.append('red')
+                
+            for pc, color in zip(parts['bodies'], colors):
+                pc.set_facecolor(color)
+                pc.set_edgecolor('black')
+                pc.set_alpha(0.5)
+                
+            for key in ['cmaxes', 'cmins', 'cbars', 'cmedians']:
+                if key in parts:
+                    parts[key].set_edgecolor('black')
+                    parts[key].set_linewidth(1.0)
+                    
+            plt.xticks(range(1, len(labels) + 1), labels)
+            
+        plt.axhline(0, color='gray', linestyle='--', linewidth=0.8)
+        plt.ylabel('Delta Predicted Half-life (Mutated - WT)')
+        plt.title('Impact of Mutations on Predicted Protein Half-life (Violin Plot)')
+        plt.grid(True, alpha=0.3)
+        
+        violin_path = os.path.join(args.output_dir, "variant_prediction_violin.png")
+        plt.savefig(violin_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Violinplot gespeichert unter {violin_path}")
         
         # 2. Scatter plot (WT vs Mutated) - Multi-panel layout
         plt.figure(figsize=(12, 12))
