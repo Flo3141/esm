@@ -254,23 +254,47 @@ def run_analysis(args):
         plt.close()
         print(f"Boxplot gespeichert unter {boxplot_path}")
         
-        # 2. Scatter plot (WT vs Mutated)
-        plt.figure(figsize=(8, 8))
-        if len(benign) > 0:
-            plt.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label='Benign', s=15)
-        if len(pathogenic) > 0:
-            plt.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label='Pathogenic', s=15)
-            
+        # 2. Scatter plot (WT vs Mutated) - Multi-panel layout
+        plt.figure(figsize=(12, 12))
+        
         # Draw identity line
         min_val = min(df_merged['pred_halflife'].min(), df_merged['pred_mut_halflife'].min())
         max_val = max(df_merged['pred_halflife'].max(), df_merged['pred_mut_halflife'].max())
-        plt.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
         
-        plt.xlabel('Wild-Type (WT) Prediction')
-        plt.ylabel('Mutation Prediction')
-        plt.title('WT vs. Mutated Half-life Prediction')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
+        # --- Top Plot (Combined) ---
+        ax1 = plt.subplot(2, 2, (1, 2))
+        if len(benign) > 0:
+            ax1.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label='Benign', s=15)
+        if len(pathogenic) > 0:
+            ax1.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label='Pathogenic', s=15)
+        ax1.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
+        ax1.set_xlabel('Wild-Type (WT) Prediction')
+        ax1.set_ylabel('Mutation Prediction')
+        ax1.set_title('WT vs. Mutated Half-life Prediction (All Variants)')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # --- Bottom Left Plot (Benign only) ---
+        ax2 = plt.subplot(2, 2, 3)
+        if len(benign) > 0:
+            ax2.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label='Benign', s=15)
+        ax2.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
+        ax2.set_xlabel('Wild-Type (WT) Prediction')
+        ax2.set_ylabel('Mutation Prediction')
+        ax2.set_title('Benign Variants')
+        ax2.grid(True, alpha=0.3)
+        
+        # --- Bottom Right Plot (Pathogenic only) ---
+        ax3 = plt.subplot(2, 2, 4)
+        if len(pathogenic) > 0:
+            ax3.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label='Pathogenic', s=15)
+        ax3.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
+        ax3.set_xlabel('Wild-Type (WT) Prediction')
+        ax3.set_ylabel('Mutation Prediction')
+        ax3.set_title('Pathogenic Variants')
+        ax3.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
         
         scatterplot_path = os.path.join(args.output_dir, "variant_prediction_scatter.png")
         plt.savefig(scatterplot_path, dpi=300, bbox_inches='tight')
