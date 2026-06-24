@@ -246,7 +246,7 @@ def run_analysis(args):
         plt.boxplot(data_to_plot, labels=labels)
         plt.axhline(0, color='gray', linestyle='--', linewidth=0.8)
         plt.ylabel('Delta Predicted Half-life (Mutated - WT)')
-        plt.title('Impact of Mutations on Predicted Protein Half-life (Boxplot)')
+        plt.title('Impact of Mutations on Predicted Protein Half-life')
         plt.grid(True, alpha=0.3)
         
         boxplot_path = os.path.join(args.output_dir, "variant_prediction_analysis.png")
@@ -285,7 +285,7 @@ def run_analysis(args):
             
         plt.axhline(0, color='gray', linestyle='--', linewidth=0.8)
         plt.ylabel('Delta Predicted Half-life (Mutated - WT)')
-        plt.title('Impact of Mutations on Predicted Protein Half-life (Violin Plot)')
+        plt.title('Impact of Mutations on Predicted Protein Half-life')
         plt.grid(True, alpha=0.3)
         
         violin_path = os.path.join(args.output_dir, "variant_prediction_violin.png")
