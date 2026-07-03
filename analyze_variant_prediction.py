@@ -100,14 +100,21 @@ def generate_validation_predictions(args, tokenizer, folds):
 
         df_val['pred_halflife'] = predictions
         
+        # Rename columns and keep only the specified ones
+        df_val_filtered = df_val.rename(columns={
+            'AA': 'sequence',
+            'pred_halflife': 'prediction',
+            'halflife': 'label'
+        })[['tid', 'gene', 'sequence', 'prediction', 'label']]
+        
         # Save individual fold predictions
         wt_pred_dir = os.path.join(args.output_dir, "wild_type_predictions")
         os.makedirs(wt_pred_dir, exist_ok=True)
         fold_out_path = os.path.join(wt_pred_dir, f"val_predictions_fold_{f_idx}.csv")
-        df_val.to_csv(fold_out_path, index=False)
+        df_val_filtered.to_csv(fold_out_path, index=False)
         print(f"Validierungsvorhersagen für Fold {f_idx} gespeichert unter {fold_out_path}")
         
-        val_dfs.append(df_val)
+        val_dfs.append(df_val_filtered)
         
         # Clean up
         del state_dict
@@ -146,7 +153,7 @@ def run_analysis(args):
     
     # Merge on tid
     df_merged = pd.merge(
-        val_df[['tid', 'gene', 'halflife', 'pred_halflife']],
+        val_df[['tid', 'gene', 'label', 'prediction']],
         mut_df[['tid', 'variant_id', 'clinical_significance', 'pred_mut_halflife']],
         on='tid'
     )
@@ -157,7 +164,7 @@ def run_analysis(args):
         return
         
     # Calculate delta
-    df_merged['delta_halflife'] = df_merged['pred_mut_halflife'] - df_merged['pred_halflife']
+    df_merged['delta_halflife'] = df_merged['pred_mut_halflife'] - df_merged['prediction']
     
     benign = df_merged[df_merged['clinical_significance'] == 'Benign']
     pathogenic = df_merged[df_merged['clinical_significance'] == 'Pathogenic']
@@ -270,15 +277,15 @@ def run_analysis(args):
         plt.figure(figsize=(12, 12))
         
         # Draw identity line
-        min_val = min(df_merged['pred_halflife'].min(), df_merged['pred_mut_halflife'].min())
-        max_val = max(df_merged['pred_halflife'].max(), df_merged['pred_mut_halflife'].max())
+        min_val = min(df_merged['prediction'].min(), df_merged['pred_mut_halflife'].min())
+        max_val = max(df_merged['prediction'].max(), df_merged['pred_mut_halflife'].max())
         
         # --- Top Plot (Combined) ---
         ax1 = plt.subplot(2, 2, (1, 2))
         if len(benign) > 0:
-            ax1.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label=f'Benign (n={len(benign)})', s=15)
+            ax1.scatter(benign['prediction'], benign['pred_mut_halflife'], color='green', alpha=0.5, label=f'Benign (n={len(benign)})', s=15)
         if len(pathogenic) > 0:
-            ax1.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label=f'Pathogenic (n={len(pathogenic)})', s=15)
+            ax1.scatter(pathogenic['prediction'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label=f'Pathogenic (n={len(pathogenic)})', s=15)
         ax1.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
         ax1.set_xlabel('Wild-Type (WT) Prediction')
         ax1.set_ylabel('Mutation Prediction')
@@ -289,7 +296,7 @@ def run_analysis(args):
         # --- Bottom Left Plot (Benign only) ---
         ax2 = plt.subplot(2, 2, 3)
         if len(benign) > 0:
-            ax2.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label=f'Benign (n={len(benign)})', s=15)
+            ax2.scatter(benign['prediction'], benign['pred_mut_halflife'], color='green', alpha=0.5, label=f'Benign (n={len(benign)})', s=15)
         ax2.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
         ax2.set_xlabel('Wild-Type (WT) Prediction')
         ax2.set_ylabel('Mutation Prediction')
@@ -299,7 +306,7 @@ def run_analysis(args):
         # --- Bottom Right Plot (Pathogenic only) ---
         ax3 = plt.subplot(2, 2, 4)
         if len(pathogenic) > 0:
-            ax3.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label=f'Pathogenic (n={len(pathogenic)})', s=15)
+            ax3.scatter(pathogenic['prediction'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label=f'Pathogenic (n={len(pathogenic)})', s=15)
         ax3.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
         ax3.set_xlabel('Wild-Type (WT) Prediction')
         ax3.set_ylabel('Mutation Prediction')
@@ -312,6 +319,29 @@ def run_analysis(args):
         plt.savefig(scatterplot_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Scatterplot gespeichert unter {scatterplot_path}")
+        
+        # 3. Scatter plot (Ground Truth vs Prediction for Wild Types)
+        plt.figure(figsize=(8, 6))
+        plt.scatter(val_df['label'], val_df['prediction'], color='teal', alpha=0.4, s=15, label='Data points')
+        
+        # Draw identity line
+        min_wt = min(val_df['label'].min(), val_df['prediction'].min())
+        max_wt = max(val_df['label'].max(), val_df['prediction'].max())
+        plt.plot([min_wt, max_wt], [min_wt, max_wt], color='red', linestyle='--', label='y = x (Perfect prediction)', linewidth=1.2)
+        
+        pearson_r = val_df['label'].corr(val_df['prediction'], method='pearson')
+        spearman_r = val_df['label'].corr(val_df['prediction'], method='spearman')
+        
+        plt.xlabel('Ground Truth Half-life (label)')
+        plt.ylabel('Predicted Half-life (prediction)')
+        plt.title(f'Wild-Type Half-life: Ground Truth vs. Prediction (N={len(val_df)})\nPearson r = {pearson_r:.3f}, Spearman r = {spearman_r:.3f}')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        wt_scatter_path = os.path.join(plots_dir, "wild_type_gt_vs_pred_scatter.png")
+        plt.savefig(wt_scatter_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Wild-Type GT vs Prediction Scatterplot gespeichert unter {wt_scatter_path}")
 
     except Exception as e:
         print(f"Warnung: Visualisierungen konnten nicht erzeugt werden. Fehler: {e}")
