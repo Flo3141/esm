@@ -124,40 +124,6 @@ def generate_validation_predictions(args, tokenizer, folds):
     
     return combined_val_df
 
-def average_test_predictions(output_dir, folds_keys):
-    print("\n==================== Berechne durchschnittliche Test-Vorhersagen ====================")
-    dfs = []
-    for f_idx in folds_keys:
-        path = os.path.join(output_dir, f"test_predictions_fold_{f_idx}.csv")
-        if not os.path.exists(path):
-            print(f"Warnung: Test-Vorhersagedatei nicht gefunden: {path}")
-            continue
-        df = pd.read_csv(path)
-        # Rename prediction to prediction_fold_x to prevent conflict
-        df = df.rename(columns={"prediction": f"prediction_fold_{f_idx}"})
-        dfs.append(df)
-    
-    if not dfs:
-        print("Keine Test-Vorhersagedateien zum Mitteln gefunden.")
-        return
-        
-    # Merge all DataFrames on keys to align rows exactly
-    merged_df = dfs[0]
-    for df in dfs[1:]:
-        merged_df = pd.merge(merged_df, df, on=['tid', 'gene', 'sequence', 'label'])
-        
-    # Calculate average prediction
-    pred_cols = [f"prediction_fold_{f_idx}" for f_idx in folds_keys if f"prediction_fold_{f_idx}" in merged_df.columns]
-    merged_df['prediction'] = merged_df[pred_cols].mean(axis=1)
-    
-    # Keep only target columns
-    final_df = merged_df[['tid', 'gene', 'sequence', 'prediction', 'label']]
-    
-    # Save to output file
-    out_path = os.path.join(output_dir, "test_predictions_average.csv")
-    final_df.to_csv(out_path, index=False)
-    print(f"Durchschnittliche Test-Vorhersagen gespeichert unter {out_path}")
-
 def run_analysis(args):
     print("\n==================== Starte Varianten-Vorhersage-Analyse ====================")
     
@@ -346,7 +312,7 @@ def run_analysis(args):
 def main():
     parser = argparse.ArgumentParser(description="Analyze wild-type vs mutated sequence predictions.")
     parser.add_argument("--csv_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/Protein_half_lifes.csv", help="Pfad zur Protein_half_lifes.csv")
-    parser.add_argument("--mutated_csv_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output/Protein_half_lifes_predicted.csv", help="Pfad zur Protein_half_lifes_predicted.csv")
+    parser.add_argument("--mutated_csv_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output/variant_predictions/variants_prediction_average.csv", help="Pfad zur variants_prediction_average.csv")
     parser.add_argument("--model_name", type=str, default="facebook/esm2_t12_35M_UR50D", help="ESM Modellname von Hugging Face")
     parser.add_argument("--cache_dir", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_weights", help="Speicherort für Hugging Face Gewichte")
     parser.add_argument("--output_dir", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output", help="Ausgabeverzeichnis für die Ergebnisse")
@@ -375,10 +341,7 @@ def main():
     else:
         print("Überspringe Generierung der Validierungsvorhersagen.")
 
-    # 2. Berechne durchschnittliche Test-Vorhersagen
-    average_test_predictions(args.output_dir, list(folds.keys()))
-
-    # 3. Führe Analyse durch
+    # 2. Führe Analyse durch
     run_analysis(args)
 
 if __name__ == "__main__":

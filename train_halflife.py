@@ -67,7 +67,7 @@ def compute_metrics(eval_pred):
 
 def evaluate_predictions(checkpoint_dir, fold_idx):
     pred_filename = f"test_predictions_fold_{fold_idx}.csv"
-    test_pred = os.path.join(checkpoint_dir, pred_filename)
+    test_pred = os.path.join(checkpoint_dir, "wild_type_predictions", pred_filename)
     if not os.path.exists(test_pred):
         raise FileNotFoundError(f"Fehler: {test_pred} existiert nicht.")
     df = pd.read_csv(test_pred)
@@ -150,11 +150,49 @@ def evaluate_on_test(args, tokenizer, fold_idx):
         "label": labels
     })
     
-    test_pred_path = os.path.join(args.output_dir, f"test_predictions_fold_{fold_idx}.csv")
+    wt_pred_dir = os.path.join(args.output_dir, "wild_type_predictions")
+    os.makedirs(wt_pred_dir, exist_ok=True)
+    test_pred_path = os.path.join(wt_pred_dir, f"test_predictions_fold_{fold_idx}.csv")
     df_pred.to_csv(test_pred_path, index=False)
     print(f"Test-Vorhersagen gespeichert unter {test_pred_path}")
     
     return evaluate_predictions(args.output_dir, fold_idx=fold_idx)
+
+def average_test_predictions(output_dir, folds_keys):
+    print("\n==================== Berechne durchschnittliche Test-Vorhersagen ====================")
+    dfs = []
+    wt_pred_dir = os.path.join(output_dir, "wild_type_predictions")
+    for f_idx in folds_keys:
+        path = os.path.join(wt_pred_dir, f"test_predictions_fold_{f_idx}.csv")
+        if not os.path.exists(path):
+            print(f"Warnung: Test-Vorhersagedatei nicht gefunden: {path}")
+            continue
+        df = pd.read_csv(path)
+        # Rename prediction to prediction_fold_x to prevent conflict
+        df = df.rename(columns={"prediction": f"prediction_fold_{f_idx}"})
+        dfs.append(df)
+    
+    if not dfs:
+        print("Keine Test-Vorhersagedateien zum Mitteln gefunden.")
+        return
+        
+    # Merge all DataFrames on keys to align rows exactly
+    merged_df = dfs[0]
+    for df in dfs[1:]:
+        merged_df = pd.merge(merged_df, df, on=['tid', 'gene', 'sequence', 'label'])
+        
+    # Calculate average prediction
+    pred_cols = [f"prediction_fold_{f_idx}" for f_idx in folds_keys if f"prediction_fold_{f_idx}" in merged_df.columns]
+    merged_df['prediction'] = merged_df[pred_cols].mean(axis=1)
+    
+    # Keep only target columns
+    final_df = merged_df[['tid', 'gene', 'sequence', 'prediction', 'label']]
+    
+    # Save to output file
+    os.makedirs(wt_pred_dir, exist_ok=True)
+    out_path = os.path.join(wt_pred_dir, "test_predictions_average.csv")
+    final_df.to_csv(out_path, index=False)
+    print(f"Durchschnittliche Test-Vorhersagen gespeichert unter {out_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="Train a Regression Head on ESM for Protein Half-life")
@@ -263,6 +301,9 @@ def main():
         metrics = evaluate_on_test(args, tokenizer, f_idx)
         if metrics is not None:
             all_metrics.append(metrics)
+
+    # Berechne durchschnittliche Test-Vorhersagen und speichere sie als test_predictions_average.csv
+    average_test_predictions(args.output_dir, [0, 1, 2, 3])
 
     # 3. Berechne Mean und Std der Metriken und speichere sie ab
     mses = [m["mse"] for m in all_metrics]
