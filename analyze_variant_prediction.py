@@ -317,7 +317,7 @@ def main():
     parser.add_argument("--cache_dir", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_weights", help="Speicherort für Hugging Face Gewichte")
     parser.add_argument("--output_dir", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output", help="Ausgabeverzeichnis für die Ergebnisse")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch Größe für Inferenz")
-    parser.add_argument("--skip_prediction", action="store_true", help="Überspringe die Generierung der Validierungsvorhersagen, falls bereits erzeugt.")
+    parser.add_argument("--create_val_predictions", action="store_true", help="Generiere die Validierungsvorhersagen.")
     
     args = parser.parse_args()
 
@@ -333,7 +333,7 @@ def main():
     }
 
     # 1. Optionale Generierung der WT Validierungsvorhersagen
-    if not args.skip_prediction:
+    if args.create_val_predictions:
         print("Starte Generierung der Validierungsvorhersagen für normale Sequenzen...")
         print(f"Lade Tokenizer: {args.model_name}")
         tokenizer = EsmTokenizer.from_pretrained(args.model_name, cache_dir=args.cache_dir)
