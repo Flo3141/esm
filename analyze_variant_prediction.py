@@ -101,7 +101,9 @@ def generate_validation_predictions(args, tokenizer, folds):
         df_val['pred_halflife'] = predictions
         
         # Save individual fold predictions
-        fold_out_path = os.path.join(args.output_dir, f"val_predictions_fold_{f_idx}.csv")
+        wt_pred_dir = os.path.join(args.output_dir, "wild_type_predictions")
+        os.makedirs(wt_pred_dir, exist_ok=True)
+        fold_out_path = os.path.join(wt_pred_dir, f"val_predictions_fold_{f_idx}.csv")
         df_val.to_csv(fold_out_path, index=False)
         print(f"Validierungsvorhersagen für Fold {f_idx} gespeichert unter {fold_out_path}")
         
@@ -118,7 +120,9 @@ def generate_validation_predictions(args, tokenizer, folds):
 
     # Combine all validation predictions
     combined_val_df = pd.concat(val_dfs, ignore_index=True)
-    combined_out_path = os.path.join(args.output_dir, "val_predictions_all_folds.csv")
+    wt_pred_dir = os.path.join(args.output_dir, "wild_type_predictions")
+    os.makedirs(wt_pred_dir, exist_ok=True)
+    combined_out_path = os.path.join(wt_pred_dir, "val_predictions_all_folds.csv")
     combined_val_df.to_csv(combined_out_path, index=False)
     print(f"\nKombinierte Out-of-Fold Validierungsvorhersagen gespeichert unter {combined_out_path}")
     
@@ -127,7 +131,7 @@ def generate_validation_predictions(args, tokenizer, folds):
 def run_analysis(args):
     print("\n==================== Starte Varianten-Vorhersage-Analyse ====================")
     
-    combined_val_path = os.path.join(args.output_dir, "val_predictions_all_folds.csv")
+    combined_val_path = os.path.join(args.output_dir, "wild_type_predictions", "val_predictions_all_folds.csv")
     if not os.path.exists(combined_val_path):
         raise FileNotFoundError(f"Fehler: {combined_val_path} existiert nicht. Bitte lassen Sie zuerst die Validierungsvorhersagen laufen.")
         
@@ -198,6 +202,9 @@ def run_analysis(args):
         matplotlib.use('Agg') # Force non-interactive backend for server compatibility
         import matplotlib.pyplot as plt
         
+        plots_dir = os.path.join(args.output_dir, "plots")
+        os.makedirs(plots_dir, exist_ok=True)
+        
         # 1. Boxplot of Delta Halflife
         plt.figure(figsize=(8, 6))
         data_to_plot = []
@@ -215,7 +222,7 @@ def run_analysis(args):
         plt.title(f'Impact of Mutations on Predicted Protein Half-life (N={len(df_merged)})')
         plt.grid(True, alpha=0.3)
         
-        boxplot_path = os.path.join(args.output_dir, "variant_prediction_analysis.png")
+        boxplot_path = os.path.join(plots_dir, "variant_prediction_analysis.png")
         plt.savefig(boxplot_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Boxplot gespeichert unter {boxplot_path}")
@@ -254,7 +261,7 @@ def run_analysis(args):
         plt.title(f'Impact of Mutations on Predicted Protein Half-life (N={len(df_merged)})')
         plt.grid(True, alpha=0.3)
         
-        violin_path = os.path.join(args.output_dir, "variant_prediction_violin.png")
+        violin_path = os.path.join(plots_dir, "variant_prediction_violin.png")
         plt.savefig(violin_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Violinplot gespeichert unter {violin_path}")
@@ -301,7 +308,7 @@ def run_analysis(args):
         
         plt.tight_layout()
         
-        scatterplot_path = os.path.join(args.output_dir, "variant_prediction_scatter.png")
+        scatterplot_path = os.path.join(plots_dir, "variant_prediction_scatter.png")
         plt.savefig(scatterplot_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Scatterplot gespeichert unter {scatterplot_path}")
