@@ -204,15 +204,15 @@ def run_analysis(args):
         labels = []
         if len(benign) > 0:
             data_to_plot.append(benign['delta_halflife'].dropna())
-            labels.append('Benign')
+            labels.append(f'Benign (n={len(benign)})')
         if len(pathogenic) > 0:
             data_to_plot.append(pathogenic['delta_halflife'].dropna())
-            labels.append('Pathogenic')
+            labels.append(f'Pathogenic (n={len(pathogenic)})')
             
         plt.boxplot(data_to_plot, labels=labels)
         plt.axhline(0, color='gray', linestyle='--', linewidth=0.8)
         plt.ylabel('Delta Predicted Half-life (Mutated - WT)')
-        plt.title('Impact of Mutations on Predicted Protein Half-life')
+        plt.title(f'Impact of Mutations on Predicted Protein Half-life (N={len(df_merged)})')
         plt.grid(True, alpha=0.3)
         
         boxplot_path = os.path.join(args.output_dir, "variant_prediction_analysis.png")
@@ -251,7 +251,7 @@ def run_analysis(args):
             
         plt.axhline(0, color='gray', linestyle='--', linewidth=0.8)
         plt.ylabel('Delta Predicted Half-life (Mutated - WT)')
-        plt.title('Impact of Mutations on Predicted Protein Half-life')
+        plt.title(f'Impact of Mutations on Predicted Protein Half-life (N={len(df_merged)})')
         plt.grid(True, alpha=0.3)
         
         violin_path = os.path.join(args.output_dir, "variant_prediction_violin.png")
@@ -269,34 +269,34 @@ def run_analysis(args):
         # --- Top Plot (Combined) ---
         ax1 = plt.subplot(2, 2, (1, 2))
         if len(benign) > 0:
-            ax1.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label='Benign', s=15)
+            ax1.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label=f'Benign (n={len(benign)})', s=15)
         if len(pathogenic) > 0:
-            ax1.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label='Pathogenic', s=15)
+            ax1.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label=f'Pathogenic (n={len(pathogenic)})', s=15)
         ax1.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
         ax1.set_xlabel('Wild-Type (WT) Prediction')
         ax1.set_ylabel('Mutation Prediction')
-        ax1.set_title('WT vs. Mutated Half-life Prediction (All Variants)')
+        ax1.set_title(f'WT vs. Mutated Half-life Prediction (All Variants, N={len(df_merged)})')
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         
         # --- Bottom Left Plot (Benign only) ---
         ax2 = plt.subplot(2, 2, 3)
         if len(benign) > 0:
-            ax2.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label='Benign', s=15)
+            ax2.scatter(benign['pred_halflife'], benign['pred_mut_halflife'], color='green', alpha=0.5, label=f'Benign (n={len(benign)})', s=15)
         ax2.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
         ax2.set_xlabel('Wild-Type (WT) Prediction')
         ax2.set_ylabel('Mutation Prediction')
-        ax2.set_title('Benign Variants')
+        ax2.set_title(f'Benign Variants (n={len(benign)})')
         ax2.grid(True, alpha=0.3)
         
         # --- Bottom Right Plot (Pathogenic only) ---
         ax3 = plt.subplot(2, 2, 4)
         if len(pathogenic) > 0:
-            ax3.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label='Pathogenic', s=15)
+            ax3.scatter(pathogenic['pred_halflife'], pathogenic['pred_mut_halflife'], color='red', alpha=0.5, label=f'Pathogenic (n={len(pathogenic)})', s=15)
         ax3.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='y = x (no change)', linewidth=1.2)
         ax3.set_xlabel('Wild-Type (WT) Prediction')
         ax3.set_ylabel('Mutation Prediction')
-        ax3.set_title('Pathogenic Variants')
+        ax3.set_title(f'Pathogenic Variants (n={len(pathogenic)})')
         ax3.grid(True, alpha=0.3)
         
         plt.tight_layout()
