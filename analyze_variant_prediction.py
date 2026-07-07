@@ -614,7 +614,7 @@ def run_analysis(args):
         plt.title(f'Impact of Mutations on Predicted Protein Half-life (N={len(df_merged)})')
         plt.grid(True, alpha=0.3)
         
-        boxplot_path = os.path.join(plots_dir, "variant_prediction_analysis.png")
+        boxplot_path = os.path.join(plots_dir, "variant_prediction_boxplot.png")
         plt.savefig(boxplot_path, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"Boxplot gespeichert unter {boxplot_path}")
