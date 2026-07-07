@@ -466,9 +466,23 @@ def plot_variant_significance(df_plot, plots_folder):
 
     # --- PLOT 2: Delta Distribution ---
     plt.figure(figsize=(10, 6))
-    sns.kdeplot(data=df_plot, x='delta', hue='category', palette=palette, fill=True, common_norm=False)
+    df_plot_kde = df_plot.dropna(subset=['delta', 'category']).copy()
+    total_n = len(df_plot_kde)
+    category_counts = df_plot_kde['category'].value_counts()
+    
+    kde_palette = {}
+    kde_hue_col = []
+    for cat in df_plot_kde['category']:
+        count = category_counts.get(cat, 0)
+        label = f"{cat} (n={count})"
+        kde_hue_col.append(label)
+        if cat in palette:
+            kde_palette[label] = palette[cat]
+    df_plot_kde['category_legend'] = kde_hue_col
+
+    sns.kdeplot(data=df_plot_kde, x='delta', hue='category_legend', palette=kde_palette, fill=True, common_norm=False)
     plt.axvline(0, color='gray', linestyle='--')
-    plt.title('Distribution of Prediction Changes (Delta)', fontsize=15)
+    plt.title(f'Distribution of Prediction Changes (Delta) (n={total_n})', fontsize=15)
     plt.xlabel('Delta (Mutated - Wild-type)', fontsize=12)
     
     out2 = os.path.join(plots_folder, "delta_distribution_significance.png")
@@ -544,9 +558,23 @@ def plot_variant_consequence(df_plot, plots_folder):
 
     # --- PLOT 2: Delta Distribution ---
     plt.figure(figsize=(10, 6))
-    sns.kdeplot(data=df_conseq, x='delta', hue='consequence_category', palette=palette, fill=True, common_norm=False)
+    df_conseq_kde = df_conseq.dropna(subset=['delta', 'consequence_category']).copy()
+    total_n = len(df_conseq_kde)
+    conseq_counts = df_conseq_kde['consequence_category'].value_counts()
+    
+    kde_palette = {}
+    kde_hue_col = []
+    for cat in df_conseq_kde['consequence_category']:
+        count = conseq_counts.get(cat, 0)
+        label = f"{cat} (n={count})"
+        kde_hue_col.append(label)
+        if cat in palette:
+            kde_palette[label] = palette[cat]
+    df_conseq_kde['consequence_legend'] = kde_hue_col
+
+    sns.kdeplot(data=df_conseq_kde, x='delta', hue='consequence_legend', palette=kde_palette, fill=True, common_norm=False)
     plt.axvline(0, color='gray', linestyle='--')
-    plt.title('Distribution of Prediction Changes (Delta) by Consequence Class', fontsize=15)
+    plt.title(f'Distribution of Prediction Changes (Delta) by Consequence Class (n={total_n})', fontsize=15)
     plt.xlabel('Delta (Mutated - Wild-type)', fontsize=12)
     
     out2 = os.path.join(plots_folder, "delta_distribution_consequence.png")
