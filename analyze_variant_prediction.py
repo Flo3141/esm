@@ -235,18 +235,11 @@ def compile_protein_wt_predictions(args):
 def map_consequence_category(x):
     if pd.isna(x):
         return "Other"
-    x = str(x).lower()
-    
-    # Define keywords for Truncation
-    trunc_keywords = ['nonsense', 'frameshift_variant', 'splice_donor_variant', 'splice_acceptor_variant', 'frameshift']
-    if any(keyword in x for keyword in trunc_keywords):
+    x = str(x).strip().lower()
+    if x == 'nonsense':
         return "Truncation"
-        
-    # Define keywords for Exchange
-    exch_keywords = ['missense', 'missense_variant', 'inframe_deletion', 'inframe_insertion', 'inframe_indel', 'initiator_codon_variant']
-    if any(keyword in x for keyword in exch_keywords):
+    elif x == 'missense':
         return "Exchange"
-        
     return "Other"
 
 def calculate_metrics(y_true, y_pred):
@@ -725,11 +718,6 @@ def main():
     parser.add_argument("--output_dir", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output", help="Ausgabeverzeichnis für die Ergebnisse")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch Größe für Inferenz")
     parser.add_argument("--create_val_predictions", action="store_true", help="Generiere die Validierungsvorhersagen.")
-    
-    df = pd.read_csv("/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/Protein_half_lifes_mutated.csv")
-    unique_names = df["mutation_type"].unique()
-    print(unique_names)
-    exit()
     args = parser.parse_args()
 
     os.environ['TRANSFORMERS_CACHE'] = args.cache_dir
