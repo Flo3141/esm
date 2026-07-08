@@ -260,13 +260,18 @@ def calculate_metrics(y_true, y_pred):
     }
 
 def plot_wt_combined_scatter(df_wt, plots_folder):
-    """Generates a high-quality scatter plot for all wild types."""
+    """Generates a high-quality scatter plot for all wild types on a log2 scale."""
+    import matplotlib.ticker as ticker
+    
     y_true = df_wt['label_wt'].values
     y_pred = df_wt['pred_wt'].values
     
-    metrics = calculate_metrics(y_true, y_pred)
+    # Calculate metrics in log2 space
+    y_true_log = np.log2(np.clip(y_true, 1e-2, None))
+    y_pred_log = np.log2(np.clip(y_pred, 1e-2, None))
+    metrics = calculate_metrics(y_true_log, y_pred_log)
     
-    print("\n--- WT Overall Metrics (Combined) ---")
+    print("\n--- WT Overall Metrics (Combined, log2 scale) ---")
     for k, v in metrics.items():
         if isinstance(v, int):
             print(f"{k}: {v}")
@@ -295,20 +300,28 @@ def plot_wt_combined_scatter(df_wt, plots_folder):
         ax=ax
     )
     
-    # Line of identity (y = x)
-    min_val = min(y_true.min(), y_pred.min())
-    max_val = max(y_true.max(), y_pred.max())
-    padding = (max_val - min_val) * 0.05
-    limits = [min_val - padding, max_val + padding]
+    # Log scale configuration
+    ax.set_xscale('log', base=2)
+    ax.set_yscale('log', base=2)
+    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+    ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+    
+    # Line of identity (y = x) in log space
+    min_val = max(min(y_true.min(), y_pred.min()), 1e-2)
+    max_val = max(max(y_true.max(), y_pred.max()), 1e-2)
+    log_min = np.log2(min_val)
+    log_max = np.log2(max_val)
+    log_padding = (log_max - log_min) * 0.05
+    limits = [2 ** (log_min - log_padding), 2 ** (log_max + log_padding)]
     ax.plot(limits, limits, color='#34495E', linestyle='--', linewidth=1.5, label='y = x (Identity)')
     
     # Textbox for stats
     textstr = '\n'.join((
         f"N = {metrics['N']}",
-        f"Pearson $r$ = {metrics['Pearson r']:.3f}",
+        f"Pearson $r$ (log2) = {metrics['Pearson r']:.3f}",
         f"Spearman $\\rho$ = {metrics['Spearman rho']:.3f}",
-        f"MSE = {metrics['MSE']:.3f}",
-        f"$R^2$ = {metrics['R2']:.3f}"
+        f"MSE (log2) = {metrics['MSE']:.3f}",
+        f"$R^2$ (log2) = {metrics['R2']:.3f}"
     ))
     props = dict(boxstyle='round,pad=0.5', facecolor='#F8F9F9', edgecolor='#BDC3C7', alpha=0.9)
     ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=11,
@@ -316,9 +329,9 @@ def plot_wt_combined_scatter(df_wt, plots_folder):
     
     ax.set_xlim(limits)
     ax.set_ylim(limits)
-    ax.set_title('ESM Wild-Type Predictions vs. Ground Truth (All Splits)', fontsize=14, fontweight='bold', pad=15)
-    ax.set_xlabel('Ground Truth Label (Actual half-life)', fontsize=12)
-    ax.set_ylabel('Predicted half-life (Model output)', fontsize=12)
+    ax.set_title('ESM Wild-Type Predictions vs. Ground Truth (All Splits - Log2 Scale)', fontsize=14, fontweight='bold', pad=15)
+    ax.set_xlabel('Ground Truth Label (Actual half-life, Log2 scale)', fontsize=12)
+    ax.set_ylabel('Predicted half-life (Model output, Log2 scale)', fontsize=12)
     ax.legend(loc='upper right', frameon=True, facecolor='#F8F9F9', edgecolor='#BDC3C7')
     
     plt.tight_layout()
@@ -328,7 +341,9 @@ def plot_wt_combined_scatter(df_wt, plots_folder):
     plt.close()
 
 def plot_wt_split_scatters(df_wt, plots_folder):
-    """Generates a 1x2 panel plot separating Validation and Test sets."""
+    """Generates a 1x2 panel plot separating Validation and Test sets on a log2 scale."""
+    import matplotlib.ticker as ticker
+    
     sns.set_theme(style="whitegrid")
     fig, axes = plt.subplots(1, 2, figsize=(16, 7.5))
     
@@ -348,13 +363,15 @@ def plot_wt_split_scatters(df_wt, plots_folder):
         }
     ]
     
-    # Determine global limits for uniform comparison
+    # Determine global limits for uniform comparison on log2 scale
     y_true_all = df_wt['label_wt'].values
     y_pred_all = df_wt['pred_wt'].values
-    min_val = min(y_true_all.min(), y_pred_all.min())
-    max_val = max(y_true_all.max(), y_pred_all.max())
-    padding = (max_val - min_val) * 0.05
-    limits = [min_val - padding, max_val + padding]
+    min_val = max(min(y_true_all.min(), y_pred_all.min()), 1e-2)
+    max_val = max(max(y_true_all.max(), y_pred_all.max()), 1e-2)
+    log_min = np.log2(min_val)
+    log_max = np.log2(max_val)
+    log_padding = (log_max - log_min) * 0.05
+    limits = [2 ** (log_min - log_padding), 2 ** (log_max + log_padding)]
     
     for sub in subplots_data:
         df_sub = sub["df"]
@@ -366,9 +383,13 @@ def plot_wt_split_scatters(df_wt, plots_folder):
             
         y_true = df_sub['label_wt'].values
         y_pred = df_sub['pred_wt'].values
-        metrics = calculate_metrics(y_true, y_pred)
         
-        print(f"\n--- WT Metrics for {sub['title']} ---")
+        # Calculate metrics in log2 space
+        y_true_log = np.log2(np.clip(y_true, 1e-2, None))
+        y_pred_log = np.log2(np.clip(y_pred, 1e-2, None))
+        metrics = calculate_metrics(y_true_log, y_pred_log)
+        
+        print(f"\n--- WT Metrics for {sub['title']} (log2 scale) ---")
         for k, v in metrics.items():
             if isinstance(v, int):
                 print(f"{k}: {v}")
@@ -378,16 +399,22 @@ def plot_wt_split_scatters(df_wt, plots_folder):
         # Scatter
         ax.scatter(y_true, y_pred, color=sub["color"], alpha=0.5, edgecolor='none', s=25)
         
+        # Log scale configuration
+        ax.set_xscale('log', base=2)
+        ax.set_yscale('log', base=2)
+        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+        
         # Identity line
         ax.plot(limits, limits, color='#34495E', linestyle='--', linewidth=1.5, label='y = x')
         
         # Textbox
         textstr = '\n'.join((
             f"N = {metrics['N']}",
-            f"Pearson $r$ = {metrics['Pearson r']:.3f}",
+            f"Pearson $r$ (log2) = {metrics['Pearson r']:.3f}",
             f"Spearman $\\rho$ = {metrics['Spearman rho']:.3f}",
-            f"MSE = {metrics['MSE']:.3f}",
-            f"$R^2$ = {metrics['R2']:.3f}"
+            f"MSE (log2) = {metrics['MSE']:.3f}",
+            f"$R^2$ (log2) = {metrics['R2']:.3f}"
         ))
         props = dict(boxstyle='round,pad=0.5', facecolor='#F8F9F9', edgecolor='#BDC3C7', alpha=0.9)
         ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
@@ -396,11 +423,11 @@ def plot_wt_split_scatters(df_wt, plots_folder):
         ax.set_xlim(limits)
         ax.set_ylim(limits)
         ax.set_title(sub["title"], fontsize=13, fontweight='bold')
-        ax.set_xlabel('Ground Truth Label', fontsize=11)
-        ax.set_ylabel('Predicted Value', fontsize=11)
+        ax.set_xlabel('Ground Truth Label (Log2 scale)', fontsize=11)
+        ax.set_ylabel('Predicted Value (Log2 scale)', fontsize=11)
         ax.legend(loc='upper right', frameon=True)
         
-    plt.suptitle('ESM Predictions vs. Ground Truth by Data Split', fontsize=15, fontweight='bold', y=0.98)
+    plt.suptitle('ESM Predictions vs. Ground Truth by Data Split (Log2 Scale)', fontsize=15, fontweight='bold', y=0.98)
     plt.tight_layout()
     out_path = os.path.join(plots_folder, "wt_predictions_vs_gt_subplots.png")
     plt.savefig(out_path, dpi=300)
