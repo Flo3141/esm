@@ -259,19 +259,23 @@ def calculate_metrics(y_true, y_pred):
         "R2": r2
     }
 
-def plot_wt_combined_scatter(df_wt, plots_folder):
-    """Generates a high-quality scatter plot for all wild types on a log2 scale."""
+def plot_wt_combined_scatter(df_wt, plots_folder, scale='log2'):
+    """Generates a high-quality scatter plot for all wild types on a linear or log2 scale."""
     import matplotlib.ticker as ticker
     
     y_true = df_wt['label_wt'].values
     y_pred = df_wt['pred_wt'].values
     
-    # Calculate metrics in log2 space
-    y_true_log = np.log2(np.clip(y_true, 1e-2, None))
-    y_pred_log = np.log2(np.clip(y_pred, 1e-2, None))
-    metrics = calculate_metrics(y_true_log, y_pred_log)
+    if scale == 'log2':
+        # Calculate metrics in log2 space
+        y_true_log = np.log2(np.clip(y_true, 1e-2, None))
+        y_pred_log = np.log2(np.clip(y_pred, 1e-2, None))
+        metrics = calculate_metrics(y_true_log, y_pred_log)
+    else:
+        # Calculate metrics in linear space
+        metrics = calculate_metrics(y_true, y_pred)
     
-    print("\n--- WT Overall Metrics (Combined, log2 scale) ---")
+    print(f"\n--- WT Overall Metrics (Combined, {scale} scale) ---")
     for k, v in metrics.items():
         if isinstance(v, int):
             print(f"{k}: {v}")
@@ -300,48 +304,73 @@ def plot_wt_combined_scatter(df_wt, plots_folder):
         ax=ax
     )
     
-    # Log scale configuration
-    ax.set_xscale('log', base=2)
-    ax.set_yscale('log', base=2)
-    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
-    ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
-    
-    # Line of identity (y = x) in log space
-    min_val = max(min(y_true.min(), y_pred.min()), 1e-2)
-    max_val = max(max(y_true.max(), y_pred.max()), 1e-2)
-    log_min = np.log2(min_val)
-    log_max = np.log2(max_val)
-    log_padding = (log_max - log_min) * 0.05
-    limits = [2 ** (log_min - log_padding), 2 ** (log_max + log_padding)]
+    if scale == 'log2':
+        # Log scale configuration
+        ax.set_xscale('log', base=2)
+        ax.set_yscale('log', base=2)
+        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+        
+        # Line of identity (y = x) in log space
+        min_val = max(min(y_true.min(), y_pred.min()), 1e-2)
+        max_val = max(max(y_true.max(), y_pred.max()), 1e-2)
+        log_min = np.log2(min_val)
+        log_max = np.log2(max_val)
+        log_padding = (log_max - log_min) * 0.05
+        limits = [2 ** (log_min - log_padding), 2 ** (log_max + log_padding)]
+    else:
+        # Line of identity (y = x) in linear space
+        min_val = min(y_true.min(), y_pred.min())
+        max_val = max(y_true.max(), y_pred.max())
+        padding = (max_val - min_val) * 0.05
+        limits = [min_val - padding, max_val + padding]
+        
     ax.plot(limits, limits, color='#34495E', linestyle='--', linewidth=1.5, label='y = x (Identity)')
     
     # Textbox for stats
-    textstr = '\n'.join((
-        f"N = {metrics['N']}",
-        f"Pearson $r$ (log2) = {metrics['Pearson r']:.3f}",
-        f"Spearman $\\rho$ = {metrics['Spearman rho']:.3f}",
-        f"MSE (log2) = {metrics['MSE']:.3f}",
-        f"$R^2$ (log2) = {metrics['R2']:.3f}"
-    ))
+    if scale == 'log2':
+        textstr = '\n'.join((
+            f"N = {metrics['N']}",
+            f"Pearson $r$ (log2) = {metrics['Pearson r']:.3f}",
+            f"Spearman $\\rho$ = {metrics['Spearman rho']:.3f}",
+            f"MSE (log2) = {metrics['MSE']:.3f}",
+            f"$R^2$ (log2) = {metrics['R2']:.3f}"
+        ))
+    else:
+        textstr = '\n'.join((
+            f"N = {metrics['N']}",
+            f"Pearson $r$ = {metrics['Pearson r']:.3f}",
+            f"Spearman $\\rho$ = {metrics['Spearman rho']:.3f}",
+            f"MSE = {metrics['MSE']:.3f}",
+            f"$R^2$ = {metrics['R2']:.3f}"
+        ))
+        
     props = dict(boxstyle='round,pad=0.5', facecolor='#F8F9F9', edgecolor='#BDC3C7', alpha=0.9)
     ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=11,
             verticalalignment='top', bbox=props)
     
     ax.set_xlim(limits)
     ax.set_ylim(limits)
-    ax.set_title('ESM Wild-Type Predictions vs. Ground Truth (All Splits - Log2 Scale)', fontsize=14, fontweight='bold', pad=15)
-    ax.set_xlabel('Ground Truth Label (Actual half-life, Log2 scale)', fontsize=12)
-    ax.set_ylabel('Predicted half-life (Model output, Log2 scale)', fontsize=12)
+    
+    if scale == 'log2':
+        ax.set_title('ESM Wild-Type Predictions vs. Ground Truth (All Splits - Log2 Scale)', fontsize=14, fontweight='bold', pad=15)
+        ax.set_xlabel('Ground Truth Label (Actual half-life, Log2 scale)', fontsize=12)
+        ax.set_ylabel('Predicted half-life (Model output, Log2 scale)', fontsize=12)
+    else:
+        ax.set_title('ESM Wild-Type Predictions vs. Ground Truth (All Splits - Linear Scale)', fontsize=14, fontweight='bold', pad=15)
+        ax.set_xlabel('Ground Truth Label (Actual half-life)', fontsize=12)
+        ax.set_ylabel('Predicted half-life (Model output)', fontsize=12)
+        
     ax.legend(loc='upper right', frameon=True, facecolor='#F8F9F9', edgecolor='#BDC3C7')
     
     plt.tight_layout()
-    out_path = os.path.join(plots_folder, "wt_predictions_vs_gt_scatter.png")
+    out_path = os.path.join(plots_folder, f"wt_predictions_vs_gt_scatter_{scale}.png")
     plt.savefig(out_path, dpi=300)
     print(f"Saved combined WT scatter plot to: {out_path}")
     plt.close()
 
-def plot_wt_split_scatters(df_wt, plots_folder):
-    """Generates a 1x2 panel plot separating Validation and Test sets on a log2 scale."""
+def plot_wt_split_scatters(df_wt, plots_folder, scale='log2'):
+    """Generates a 1x2 panel plot separating Validation and Test sets on a linear or log2 scale."""
     import matplotlib.ticker as ticker
     
     sns.set_theme(style="whitegrid")
@@ -363,15 +392,22 @@ def plot_wt_split_scatters(df_wt, plots_folder):
         }
     ]
     
-    # Determine global limits for uniform comparison on log2 scale
+    # Determine global limits for uniform comparison
     y_true_all = df_wt['label_wt'].values
     y_pred_all = df_wt['pred_wt'].values
-    min_val = max(min(y_true_all.min(), y_pred_all.min()), 1e-2)
-    max_val = max(max(y_true_all.max(), y_pred_all.max()), 1e-2)
-    log_min = np.log2(min_val)
-    log_max = np.log2(max_val)
-    log_padding = (log_max - log_min) * 0.05
-    limits = [2 ** (log_min - log_padding), 2 ** (log_max + log_padding)]
+    
+    if scale == 'log2':
+        min_val = max(min(y_true_all.min(), y_pred_all.min()), 1e-2)
+        max_val = max(max(y_true_all.max(), y_pred_all.max()), 1e-2)
+        log_min = np.log2(min_val)
+        log_max = np.log2(max_val)
+        log_padding = (log_max - log_min) * 0.05
+        limits = [2 ** (log_min - log_padding), 2 ** (log_max + log_padding)]
+    else:
+        min_val = min(y_true_all.min(), y_pred_all.min())
+        max_val = max(y_true_all.max(), y_pred_all.max())
+        padding = (max_val - min_val) * 0.05
+        limits = [min_val - padding, max_val + padding]
     
     for sub in subplots_data:
         df_sub = sub["df"]
@@ -384,12 +420,16 @@ def plot_wt_split_scatters(df_wt, plots_folder):
         y_true = df_sub['label_wt'].values
         y_pred = df_sub['pred_wt'].values
         
-        # Calculate metrics in log2 space
-        y_true_log = np.log2(np.clip(y_true, 1e-2, None))
-        y_pred_log = np.log2(np.clip(y_pred, 1e-2, None))
-        metrics = calculate_metrics(y_true_log, y_pred_log)
-        
-        print(f"\n--- WT Metrics for {sub['title']} (log2 scale) ---")
+        if scale == 'log2':
+            # Calculate metrics in log2 space
+            y_true_log = np.log2(np.clip(y_true, 1e-2, None))
+            y_pred_log = np.log2(np.clip(y_pred, 1e-2, None))
+            metrics = calculate_metrics(y_true_log, y_pred_log)
+        else:
+            # Calculate metrics in linear space
+            metrics = calculate_metrics(y_true, y_pred)
+            
+        print(f"\n--- WT Metrics for {sub['title']} ({scale} scale) ---")
         for k, v in metrics.items():
             if isinstance(v, int):
                 print(f"{k}: {v}")
@@ -399,23 +439,34 @@ def plot_wt_split_scatters(df_wt, plots_folder):
         # Scatter
         ax.scatter(y_true, y_pred, color=sub["color"], alpha=0.5, edgecolor='none', s=25)
         
-        # Log scale configuration
-        ax.set_xscale('log', base=2)
-        ax.set_yscale('log', base=2)
-        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
-        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
-        
+        if scale == 'log2':
+            # Log scale configuration
+            ax.set_xscale('log', base=2)
+            ax.set_yscale('log', base=2)
+            ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+            ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+            
         # Identity line
         ax.plot(limits, limits, color='#34495E', linestyle='--', linewidth=1.5, label='y = x')
         
         # Textbox
-        textstr = '\n'.join((
-            f"N = {metrics['N']}",
-            f"Pearson $r$ (log2) = {metrics['Pearson r']:.3f}",
-            f"Spearman $\\rho$ = {metrics['Spearman rho']:.3f}",
-            f"MSE (log2) = {metrics['MSE']:.3f}",
-            f"$R^2$ (log2) = {metrics['R2']:.3f}"
-        ))
+        if scale == 'log2':
+            textstr = '\n'.join((
+                f"N = {metrics['N']}",
+                f"Pearson $r$ (log2) = {metrics['Pearson r']:.3f}",
+                f"Spearman $\\rho$ = {metrics['Spearman rho']:.3f}",
+                f"MSE (log2) = {metrics['MSE']:.3f}",
+                f"$R^2$ (log2) = {metrics['R2']:.3f}"
+            ))
+        else:
+            textstr = '\n'.join((
+                f"N = {metrics['N']}",
+                f"Pearson $r$ = {metrics['Pearson r']:.3f}",
+                f"Spearman $\\rho$ = {metrics['Spearman rho']:.3f}",
+                f"MSE = {metrics['MSE']:.3f}",
+                f"$R^2$ = {metrics['R2']:.3f}"
+            ))
+            
         props = dict(boxstyle='round,pad=0.5', facecolor='#F8F9F9', edgecolor='#BDC3C7', alpha=0.9)
         ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
                 verticalalignment='top', bbox=props)
@@ -423,20 +474,25 @@ def plot_wt_split_scatters(df_wt, plots_folder):
         ax.set_xlim(limits)
         ax.set_ylim(limits)
         ax.set_title(sub["title"], fontsize=13, fontweight='bold')
-        ax.set_xlabel('Ground Truth Label (Log2 scale)', fontsize=11)
-        ax.set_ylabel('Predicted Value (Log2 scale)', fontsize=11)
+        if scale == 'log2':
+            ax.set_xlabel('Ground Truth Label (Log2 scale)', fontsize=11)
+            ax.set_ylabel('Predicted Value (Log2 scale)', fontsize=11)
+        else:
+            ax.set_xlabel('Ground Truth Label', fontsize=11)
+            ax.set_ylabel('Predicted Value', fontsize=11)
         ax.legend(loc='upper right', frameon=True)
         
-    plt.suptitle('ESM Predictions vs. Ground Truth by Data Split (Log2 Scale)', fontsize=15, fontweight='bold', y=0.98)
+    title_suffix = ' (Log2 Scale)' if scale == 'log2' else ' (Linear Scale)'
+    plt.suptitle(f'ESM Predictions vs. Ground Truth by Data Split{title_suffix}', fontsize=15, fontweight='bold', y=0.98)
     plt.tight_layout()
-    out_path = os.path.join(plots_folder, "wt_predictions_vs_gt_subplots.png")
+    out_path = os.path.join(plots_folder, f"wt_predictions_vs_gt_subplots_{scale}.png")
     plt.savefig(out_path, dpi=300)
     print(f"Saved side-by-side WT scatter plots to: {out_path}")
     plt.close()
 
-def plot_variant_significance(df_plot, plots_folder):
+def plot_variant_significance(df_plot, plots_folder, scale='linear'):
     """Generates the significance-based variant plots (Scatter and Delta distribution)."""
-    print("\nStarting Variant Significance Visualizations...")
+    print(f"\nStarting Variant Significance Visualizations ({scale} scale)...")
     
     # Log counts
     print(f"Number of variants included: {len(df_plot)}")
@@ -451,42 +507,78 @@ def plot_variant_significance(df_plot, plots_folder):
     
     # 1.1 All Variants (Large Top)
     ax_top = fig.add_subplot(gs[0, :])
-    sns.scatterplot(data=df_plot, x='pred_wt', y='pred_mut_mean', hue='category', palette=palette, alpha=0.6, ax=ax_top)
+    
+    # Prepare data for plotting (with optional clipping for log scale)
+    if scale == 'log2':
+        plot_data = df_plot.copy()
+        plot_data['pred_wt'] = np.clip(plot_data['pred_wt'], 1e-2, None)
+        plot_data['pred_mut_mean'] = np.clip(plot_data['pred_mut_mean'], 1e-2, None)
+    else:
+        plot_data = df_plot
+        
+    sns.scatterplot(data=plot_data, x='pred_wt', y='pred_mut_mean', hue='category', palette=palette, alpha=0.6, ax=ax_top)
     
     # helper for y=x line
     def add_yx_line(ax, data_x, data_y):
-        min_v = min(data_x.min(), data_y.min())
-        max_v = max(data_x.max(), data_y.max())
+        if scale == 'log2':
+            min_v = max(min(data_x.min(), data_y.min()), 1e-2)
+            max_v = max(max(data_x.max(), data_y.max()), 1e-2)
+        else:
+            min_v = min(data_x.min(), data_y.min())
+            max_v = max(data_x.max(), data_y.max())
         ax.plot([min_v, max_v], [min_v, max_v], color='black', linestyle='--', label='y=x')
 
-    add_yx_line(ax_top, df_plot['pred_wt'], df_plot['pred_mut_mean'])
-    ax_top.set_title(f'All Variants: Wild-type vs. Mutated Predictions (n={len(df_plot)})', fontsize=16)
-    ax_top.set_xlabel('Wild-type Prediction')
-    ax_top.set_ylabel('Mutated Prediction (Mean)')
+    add_yx_line(ax_top, plot_data['pred_wt'], plot_data['pred_mut_mean'])
+    
+    title_suffix = ' (Log2 Scale)' if scale == 'log2' else ' (Linear Scale)'
+    ax_top.set_title(f'All Variants: Wild-type vs. Mutated Predictions{title_suffix} (n={len(df_plot)})', fontsize=16)
+    
+    if scale == 'log2':
+        ax_top.set_xscale('log', base=2)
+        ax_top.set_yscale('log', base=2)
+        ax_top.set_xlabel('Wild-type Prediction (Log2 scale)')
+        ax_top.set_ylabel('Mutated Prediction (Mean, Log2 scale)')
+    else:
+        ax_top.set_xlabel('Wild-type Prediction')
+        ax_top.set_ylabel('Mutated Prediction (Mean)')
     ax_top.legend()
 
     # 1.2 Benign Only (Small Bottom Left)
     ax_benign = fig.add_subplot(gs[1, 0])
-    df_benign = df_plot[df_plot['category'] == "Benign"]
+    df_benign = plot_data[plot_data['category'] == "Benign"]
     if not df_benign.empty:
         sns.scatterplot(data=df_benign, x='pred_wt', y='pred_mut_mean', color='green', alpha=0.5, ax=ax_benign)
         add_yx_line(ax_benign, df_benign['pred_wt'], df_benign['pred_mut_mean'])
+        
     ax_benign.set_title(f'Benign Variants Only (n={len(df_benign)})', fontsize=12)
-    ax_benign.set_xlabel('WT Prediction')
-    ax_benign.set_ylabel('Mutated Prediction')
+    if scale == 'log2':
+        ax_benign.set_xscale('log', base=2)
+        ax_benign.set_yscale('log', base=2)
+        ax_benign.set_xlabel('WT Prediction (Log2 scale)')
+        ax_benign.set_ylabel('Mutated Prediction (Log2 scale)')
+    else:
+        ax_benign.set_xlabel('WT Prediction')
+        ax_benign.set_ylabel('Mutated Prediction')
 
     # 1.3 Pathogenic Only (Small Bottom Right)
     ax_patho = fig.add_subplot(gs[1, 1])
-    df_patho = df_plot[df_plot['category'] == "Pathogenic"]
+    df_patho = plot_data[plot_data['category'] == "Pathogenic"]
     if not df_patho.empty:
         sns.scatterplot(data=df_patho, x='pred_wt', y='pred_mut_mean', color='red', alpha=0.5, ax=ax_patho)
         add_yx_line(ax_patho, df_patho['pred_wt'], df_patho['pred_mut_mean'])
+        
     ax_patho.set_title(f'Pathogenic Variants Only (n={len(df_patho)})', fontsize=12)
-    ax_patho.set_xlabel('WT Prediction')
-    ax_patho.set_ylabel('Mutated Prediction')
+    if scale == 'log2':
+        ax_patho.set_xscale('log', base=2)
+        ax_patho.set_yscale('log', base=2)
+        ax_patho.set_xlabel('WT Prediction (Log2 scale)')
+        ax_patho.set_ylabel('Mutated Prediction (Log2 scale)')
+    else:
+        ax_patho.set_xlabel('WT Prediction')
+        ax_patho.set_ylabel('Mutated Prediction')
 
     plt.tight_layout()
-    out1 = os.path.join(plots_folder, "scatter_wt_vs_mut_main.png")
+    out1 = os.path.join(plots_folder, f"scatter_wt_vs_mut_main_{scale}.png")
     plt.savefig(out1, dpi=300)
     print(f"Saved: {out1}")
     plt.close()
@@ -512,14 +604,14 @@ def plot_variant_significance(df_plot, plots_folder):
     plt.title(f'Distribution of Prediction Changes (Delta) (n={total_n})', fontsize=15)
     plt.xlabel('Delta (Mutated - Wild-type)', fontsize=12)
     
-    out2 = os.path.join(plots_folder, "delta_distribution_significance.png")
+    out2 = os.path.join(plots_folder, f"delta_distribution_significance_{scale}.png")
     plt.savefig(out2, dpi=300)
     print(f"Saved: {out2}")
     plt.close()
 
-def plot_variant_consequence(df_plot, plots_folder):
+def plot_variant_consequence(df_plot, plots_folder, scale='linear'):
     """Generates the consequence-based variant plots (Scatter and Delta distribution)."""
-    print("\nStarting Consequence Visualizations (Truncation vs Exchange)...")
+    print(f"\nStarting Consequence Visualizations (Truncation vs Exchange) ({scale} scale)...")
     
     # Filter for Truncation and Exchange only
     df_conseq = df_plot[df_plot['consequence_category'].isin(["Truncation", "Exchange"])].copy()
@@ -543,42 +635,78 @@ def plot_variant_consequence(df_plot, plots_folder):
     
     # 1.1 All Variants (Large Top)
     ax_top = fig.add_subplot(gs[0, :])
-    sns.scatterplot(data=df_conseq, x='pred_wt', y='pred_mut_mean', hue='consequence_category', palette=palette, alpha=0.6, ax=ax_top)
+    
+    # Prepare data for plotting (with optional clipping for log scale)
+    if scale == 'log2':
+        plot_data = df_conseq.copy()
+        plot_data['pred_wt'] = np.clip(plot_data['pred_wt'], 1e-2, None)
+        plot_data['pred_mut_mean'] = np.clip(plot_data['pred_mut_mean'], 1e-2, None)
+    else:
+        plot_data = df_conseq
+        
+    sns.scatterplot(data=plot_data, x='pred_wt', y='pred_mut_mean', hue='consequence_category', palette=palette, alpha=0.6, ax=ax_top)
     
     # helper for y=x line
     def add_yx_line(ax, data_x, data_y):
-        min_v = min(data_x.min(), data_y.min())
-        max_v = max(data_x.max(), data_y.max())
+        if scale == 'log2':
+            min_v = max(min(data_x.min(), data_y.min()), 1e-2)
+            max_v = max(max(data_x.max(), data_y.max()), 1e-2)
+        else:
+            min_v = min(data_x.min(), data_y.min())
+            max_v = max(data_x.max(), data_y.max())
         ax.plot([min_v, max_v], [min_v, max_v], color='black', linestyle='--', label='y=x')
 
-    add_yx_line(ax_top, df_conseq['pred_wt'], df_conseq['pred_mut_mean'])
-    ax_top.set_title(f'All Variants: Wild-type vs. Mutated Predictions by Consequence (n={len(df_conseq)})', fontsize=16)
-    ax_top.set_xlabel('Wild-type Prediction')
-    ax_top.set_ylabel('Mutated Prediction (Mean)')
+    add_yx_line(ax_top, plot_data['pred_wt'], plot_data['pred_mut_mean'])
+    
+    title_suffix = ' (Log2 Scale)' if scale == 'log2' else ' (Linear Scale)'
+    ax_top.set_title(f'All Variants: Wild-type vs. Mutated Predictions by Consequence{title_suffix} (n={len(df_conseq)})', fontsize=16)
+    
+    if scale == 'log2':
+        ax_top.set_xscale('log', base=2)
+        ax_top.set_yscale('log', base=2)
+        ax_top.set_xlabel('Wild-type Prediction (Log2 scale)')
+        ax_top.set_ylabel('Mutated Prediction (Mean, Log2 scale)')
+    else:
+        ax_top.set_xlabel('Wild-type Prediction')
+        ax_top.set_ylabel('Mutated Prediction (Mean)')
     ax_top.legend()
 
     # 1.2 Exchange Only (Small Bottom Left)
     ax_exchange = fig.add_subplot(gs[1, 0])
-    df_exchange = df_conseq[df_conseq['consequence_category'] == "Exchange"]
+    df_exchange = plot_data[plot_data['consequence_category'] == "Exchange"]
     if not df_exchange.empty:
         sns.scatterplot(data=df_exchange, x='pred_wt', y='pred_mut_mean', color=palette["Exchange"], alpha=0.5, ax=ax_exchange)
         add_yx_line(ax_exchange, df_exchange['pred_wt'], df_exchange['pred_mut_mean'])
+        
     ax_exchange.set_title(f'Exchange Variants Only (n={len(df_exchange)})', fontsize=12)
-    ax_exchange.set_xlabel('WT Prediction')
-    ax_exchange.set_ylabel('Mutated Prediction')
+    if scale == 'log2':
+        ax_exchange.set_xscale('log', base=2)
+        ax_exchange.set_yscale('log', base=2)
+        ax_exchange.set_xlabel('WT Prediction (Log2 scale)')
+        ax_exchange.set_ylabel('Mutated Prediction (Log2 scale)')
+    else:
+        ax_exchange.set_xlabel('WT Prediction')
+        ax_exchange.set_ylabel('Mutated Prediction')
 
     # 1.3 Truncation Only (Small Bottom Right)
     ax_trunc = fig.add_subplot(gs[1, 1])
-    df_trunc = df_conseq[df_conseq['consequence_category'] == "Truncation"]
+    df_trunc = plot_data[plot_data['consequence_category'] == "Truncation"]
     if not df_trunc.empty:
         sns.scatterplot(data=df_trunc, x='pred_wt', y='pred_mut_mean', color=palette["Truncation"], alpha=0.5, ax=ax_trunc)
         add_yx_line(ax_trunc, df_trunc['pred_wt'], df_trunc['pred_mut_mean'])
+        
     ax_trunc.set_title(f'Truncation Variants Only (n={len(df_trunc)})', fontsize=12)
-    ax_trunc.set_xlabel('WT Prediction')
-    ax_trunc.set_ylabel('Mutated Prediction')
+    if scale == 'log2':
+        ax_trunc.set_xscale('log', base=2)
+        ax_trunc.set_yscale('log', base=2)
+        ax_trunc.set_xlabel('WT Prediction (Log2 scale)')
+        ax_trunc.set_ylabel('Mutated Prediction (Log2 scale)')
+    else:
+        ax_trunc.set_xlabel('WT Prediction')
+        ax_trunc.set_ylabel('Mutated Prediction')
 
     plt.tight_layout()
-    out1 = os.path.join(plots_folder, "scatter_wt_vs_mut_consequence_main.png")
+    out1 = os.path.join(plots_folder, f"scatter_wt_vs_mut_consequence_main_{scale}.png")
     plt.savefig(out1, dpi=300)
     print(f"Saved: {out1}")
     plt.close()
@@ -604,7 +732,7 @@ def plot_variant_consequence(df_plot, plots_folder):
     plt.title(f'Distribution of Prediction Changes (Delta) by Consequence Class (n={total_n})', fontsize=15)
     plt.xlabel('Delta (Mutated - Wild-type)', fontsize=12)
     
-    out2 = os.path.join(plots_folder, "delta_distribution_consequence.png")
+    out2 = os.path.join(plots_folder, f"delta_distribution_consequence_{scale}.png")
     plt.savefig(out2, dpi=300)
     print(f"Saved: {out2}")
     plt.close()
@@ -721,8 +849,9 @@ def run_analysis(args):
         try:
             df_wt = compile_protein_wt_predictions(args)
             if not df_wt.empty:
-                plot_wt_combined_scatter(df_wt, plots_dir)
-                plot_wt_split_scatters(df_wt, plots_dir)
+                for scale in ['linear', 'log2']:
+                    plot_wt_combined_scatter(df_wt, plots_dir, scale=scale)
+                    plot_wt_split_scatters(df_wt, plots_dir, scale=scale)
             else:
                 print("No matching WT predictions were compiled for combined WT plots.")
         except Exception as wt_err:
@@ -750,12 +879,13 @@ def run_analysis(args):
                 print("Warning: Mutated metadata file (Protein_half_lifes_mutated.csv) not found. Consequence plots will be skipped.")
                 df_plot['consequence_category'] = "Other"
                 
-            # Plot significance plots
-            plot_variant_significance(df_plot, plots_dir)
-            
-            # Plot consequence plots if we have the consequence_category column loaded
-            if 'consequence_category' in df_plot.columns and df_plot['consequence_category'].nunique() > 1:
-                plot_variant_consequence(df_plot, plots_dir)
+            # Plot significance and consequence plots for both scales
+            for scale in ['linear', 'log2']:
+                plot_variant_significance(df_plot, plots_dir, scale=scale)
+                
+                # Plot consequence plots if we have the consequence_category column loaded
+                if 'consequence_category' in df_plot.columns and df_plot['consequence_category'].nunique() > 1:
+                    plot_variant_consequence(df_plot, plots_dir, scale=scale)
         except Exception as var_err:
             print(f"Warnung: Die neuen Varianten-Plots (Significance/Consequence) konnten nicht erzeugt werden: {var_err}")
             import traceback
