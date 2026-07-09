@@ -308,8 +308,8 @@ def plot_wt_combined_scatter(df_wt, plots_folder, scale='log2'):
         # Log scale configuration
         ax.set_xscale('log', base=2)
         ax.set_yscale('log', base=2)
-        ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
-        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
+        ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
         
         # Line of identity (y = x) in log space
         min_val = max(min(y_true.min(), y_pred.min()), 1e-2)
@@ -443,8 +443,8 @@ def plot_wt_split_scatters(df_wt, plots_folder, scale='log2'):
             # Log scale configuration
             ax.set_xscale('log', base=2)
             ax.set_yscale('log', base=2)
-            ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
-            ax.yaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+            ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
             
         # Identity line
         ax.plot(limits, limits, color='#34495E', linestyle='--', linewidth=1.5, label='y = x')
@@ -534,8 +534,11 @@ def plot_variant_significance(df_plot, plots_folder, scale='linear'):
     ax_top.set_title(f'All Variants: Wild-type vs. Mutated Predictions{title_suffix} (n={len(df_plot)})', fontsize=16)
     
     if scale == 'log2':
+        import matplotlib.ticker as ticker
         ax_top.set_xscale('log', base=2)
         ax_top.set_yscale('log', base=2)
+        ax_top.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
+        ax_top.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
         ax_top.set_xlabel('Wild-type Prediction (Log2 scale)')
         ax_top.set_ylabel('Mutated Prediction (Mean, Log2 scale)')
     else:
@@ -552,8 +555,11 @@ def plot_variant_significance(df_plot, plots_folder, scale='linear'):
         
     ax_benign.set_title(f'Benign Variants Only (n={len(df_benign)})', fontsize=12)
     if scale == 'log2':
+        import matplotlib.ticker as ticker
         ax_benign.set_xscale('log', base=2)
         ax_benign.set_yscale('log', base=2)
+        ax_benign.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
+        ax_benign.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
         ax_benign.set_xlabel('WT Prediction (Log2 scale)')
         ax_benign.set_ylabel('Mutated Prediction (Log2 scale)')
     else:
@@ -569,8 +575,11 @@ def plot_variant_significance(df_plot, plots_folder, scale='linear'):
         
     ax_patho.set_title(f'Pathogenic Variants Only (n={len(df_patho)})', fontsize=12)
     if scale == 'log2':
+        import matplotlib.ticker as ticker
         ax_patho.set_xscale('log', base=2)
         ax_patho.set_yscale('log', base=2)
+        ax_patho.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
+        ax_patho.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
         ax_patho.set_xlabel('WT Prediction (Log2 scale)')
         ax_patho.set_ylabel('Mutated Prediction (Log2 scale)')
     else:
@@ -584,30 +593,31 @@ def plot_variant_significance(df_plot, plots_folder, scale='linear'):
     plt.close()
 
     # --- PLOT 2: Delta Distribution ---
-    plt.figure(figsize=(10, 6))
-    df_plot_kde = df_plot.dropna(subset=['delta', 'category']).copy()
-    total_n = len(df_plot_kde)
-    category_counts = df_plot_kde['category'].value_counts()
-    
-    kde_palette = {}
-    kde_hue_col = []
-    for cat in df_plot_kde['category']:
-        count = category_counts.get(cat, 0)
-        label = f"{cat} (n={count})"
-        kde_hue_col.append(label)
-        if cat in palette:
-            kde_palette[label] = palette[cat]
-    df_plot_kde['category_legend'] = kde_hue_col
+    if scale == 'linear':
+        plt.figure(figsize=(10, 6))
+        df_plot_kde = df_plot.dropna(subset=['delta', 'category']).copy()
+        total_n = len(df_plot_kde)
+        category_counts = df_plot_kde['category'].value_counts()
+        
+        kde_palette = {}
+        kde_hue_col = []
+        for cat in df_plot_kde['category']:
+            count = category_counts.get(cat, 0)
+            label = f"{cat} (n={count})"
+            kde_hue_col.append(label)
+            if cat in palette:
+                kde_palette[label] = palette[cat]
+        df_plot_kde['category_legend'] = kde_hue_col
 
-    sns.kdeplot(data=df_plot_kde, x='delta', hue='category_legend', palette=kde_palette, fill=True, common_norm=False)
-    plt.axvline(0, color='gray', linestyle='--')
-    plt.title(f'Distribution of Prediction Changes (Delta) (n={total_n})', fontsize=15)
-    plt.xlabel('Delta (Mutated - Wild-type)', fontsize=12)
-    
-    out2 = os.path.join(plots_folder, f"delta_distribution_significance_{scale}.png")
-    plt.savefig(out2, dpi=300)
-    print(f"Saved: {out2}")
-    plt.close()
+        sns.kdeplot(data=df_plot_kde, x='delta', hue='category_legend', palette=kde_palette, fill=True, common_norm=False)
+        plt.axvline(0, color='gray', linestyle='--')
+        plt.title(f'Distribution of Prediction Changes (Delta) (n={total_n})', fontsize=15)
+        plt.xlabel('Delta (Mutated - Wild-type)', fontsize=12)
+        
+        out2 = os.path.join(plots_folder, "delta_distribution_significance.png")
+        plt.savefig(out2, dpi=300)
+        print(f"Saved: {out2}")
+        plt.close()
 
 def plot_variant_consequence(df_plot, plots_folder, scale='linear'):
     """Generates the consequence-based variant plots (Scatter and Delta distribution)."""
@@ -662,8 +672,11 @@ def plot_variant_consequence(df_plot, plots_folder, scale='linear'):
     ax_top.set_title(f'All Variants: Wild-type vs. Mutated Predictions by Consequence{title_suffix} (n={len(df_conseq)})', fontsize=16)
     
     if scale == 'log2':
+        import matplotlib.ticker as ticker
         ax_top.set_xscale('log', base=2)
         ax_top.set_yscale('log', base=2)
+        ax_top.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
+        ax_top.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
         ax_top.set_xlabel('Wild-type Prediction (Log2 scale)')
         ax_top.set_ylabel('Mutated Prediction (Mean, Log2 scale)')
     else:
@@ -680,8 +693,11 @@ def plot_variant_consequence(df_plot, plots_folder, scale='linear'):
         
     ax_exchange.set_title(f'Exchange Variants Only (n={len(df_exchange)})', fontsize=12)
     if scale == 'log2':
+        import matplotlib.ticker as ticker
         ax_exchange.set_xscale('log', base=2)
         ax_exchange.set_yscale('log', base=2)
+        ax_exchange.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
+        ax_exchange.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
         ax_exchange.set_xlabel('WT Prediction (Log2 scale)')
         ax_exchange.set_ylabel('Mutated Prediction (Log2 scale)')
     else:
@@ -697,8 +713,11 @@ def plot_variant_consequence(df_plot, plots_folder, scale='linear'):
         
     ax_trunc.set_title(f'Truncation Variants Only (n={len(df_trunc)})', fontsize=12)
     if scale == 'log2':
+        import matplotlib.ticker as ticker
         ax_trunc.set_xscale('log', base=2)
         ax_trunc.set_yscale('log', base=2)
+        ax_trunc.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
+        ax_trunc.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
         ax_trunc.set_xlabel('WT Prediction (Log2 scale)')
         ax_trunc.set_ylabel('Mutated Prediction (Log2 scale)')
     else:
@@ -712,30 +731,31 @@ def plot_variant_consequence(df_plot, plots_folder, scale='linear'):
     plt.close()
 
     # --- PLOT 2: Delta Distribution ---
-    plt.figure(figsize=(10, 6))
-    df_conseq_kde = df_conseq.dropna(subset=['delta', 'consequence_category']).copy()
-    total_n = len(df_conseq_kde)
-    conseq_counts = df_conseq_kde['consequence_category'].value_counts()
-    
-    kde_palette = {}
-    kde_hue_col = []
-    for cat in df_conseq_kde['consequence_category']:
-        count = conseq_counts.get(cat, 0)
-        label = f"{cat} (n={count})"
-        kde_hue_col.append(label)
-        if cat in palette:
-            kde_palette[label] = palette[cat]
-    df_conseq_kde['consequence_legend'] = kde_hue_col
+    if scale == 'linear':
+        plt.figure(figsize=(10, 6))
+        df_conseq_kde = df_conseq.dropna(subset=['delta', 'consequence_category']).copy()
+        total_n = len(df_conseq_kde)
+        conseq_counts = df_conseq_kde['consequence_category'].value_counts()
+        
+        kde_palette = {}
+        kde_hue_col = []
+        for cat in df_conseq_kde['consequence_category']:
+            count = conseq_counts.get(cat, 0)
+            label = f"{cat} (n={count})"
+            kde_hue_col.append(label)
+            if cat in palette:
+                kde_palette[label] = palette[cat]
+        df_conseq_kde['consequence_legend'] = kde_hue_col
 
-    sns.kdeplot(data=df_conseq_kde, x='delta', hue='consequence_legend', palette=kde_palette, fill=True, common_norm=False)
-    plt.axvline(0, color='gray', linestyle='--')
-    plt.title(f'Distribution of Prediction Changes (Delta) by Consequence Class (n={total_n})', fontsize=15)
-    plt.xlabel('Delta (Mutated - Wild-type)', fontsize=12)
-    
-    out2 = os.path.join(plots_folder, f"delta_distribution_consequence_{scale}.png")
-    plt.savefig(out2, dpi=300)
-    print(f"Saved: {out2}")
-    plt.close()
+        sns.kdeplot(data=df_conseq_kde, x='delta', hue='consequence_legend', palette=kde_palette, fill=True, common_norm=False)
+        plt.axvline(0, color='gray', linestyle='--')
+        plt.title(f'Distribution of Prediction Changes (Delta) by Consequence Class (n={total_n})', fontsize=15)
+        plt.xlabel('Delta (Mutated - Wild-type)', fontsize=12)
+        
+        out2 = os.path.join(plots_folder, "delta_distribution_consequence.png")
+        plt.savefig(out2, dpi=300)
+        print(f"Saved: {out2}")
+        plt.close()
 
 def run_analysis(args):
     print("\n==================== Starte Varianten-Vorhersage-Analyse ====================")
