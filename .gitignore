@@ -1,4 +1,5 @@
 esm.egg-info
+.venv
 # pixi environments
 .pixi
 *.egg-info

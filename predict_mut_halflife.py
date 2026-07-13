@@ -35,7 +35,7 @@ class ProteinMutationInferenceDataset(Dataset):
 def main():
     parser = argparse.ArgumentParser(description="Predict mutated sequence half-lives using ESM fold models.")
     parser.add_argument("--csv_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/Protein_half_lifes_mutated.csv", help="Pfad zur Protein_half_lifes_mutated.csv")
-    parser.add_argument("--output_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output/Protein_half_lifes_predicted.csv", help="Pfad zur Ausgabedatei")
+    parser.add_argument("--output_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output/variant_predictions", help="Pfad zum Ausgabeverzeichnis")
     parser.add_argument("--model_name", type=str, default="facebook/esm2_t12_35M_UR50D", help="ESM Modellname von Hugging Face")
     parser.add_argument("--cache_dir", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_weights", help="Speicherort für Hugging Face Gewichte")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch Größe für die Vorhersage")
@@ -130,6 +130,20 @@ def main():
                     
         fold_predictions[f_idx] = predictions
         
+        # Save individual fold predictions
+        df_fold = df.copy()
+        df_fold['pred_mut_halflife'] = predictions
+        output_cols = ['tid', 'gene', 'variant_id', 'clinical_significance', 'halflife', 'pred_mut_halflife']
+        for col in output_cols:
+            if col not in df_fold.columns:
+                raise KeyError(f"Fehler: Die benötigte Spalte '{col}' existiert nicht in der Eingabe-CSV.")
+        
+        df_fold_out = df_fold[output_cols]
+        os.makedirs(args.output_path, exist_ok=True)
+        fold_out_path = os.path.join(args.output_path, f"variants_prediction_fold_{f_idx}.csv")
+        print(f"Speichere Ergebnisse für Fold {f_idx} nach: {fold_out_path}")
+        df_fold_out.to_csv(fold_out_path, index=False)
+        
         # Clean up
         del state_dict
         if torch.cuda.is_available():
@@ -152,9 +166,10 @@ def main():
 
     df_out = df[output_cols]
 
-    # Save to output path
-    print(f"Speichere Ergebnisse nach: {args.output_path}")
-    df_out.to_csv(args.output_path, index=False)
+    # Save average predictions
+    avg_out_path = os.path.join(args.output_path, "variants_prediction_average.csv")
+    print(f"Speichere durchschnittliche Ergebnisse nach: {avg_out_path}")
+    df_out.to_csv(avg_out_path, index=False)
     print("Fertig!")
 
 if __name__ == "__main__":

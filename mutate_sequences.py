@@ -3,6 +3,7 @@ import gzip
 import re
 import os
 import time
+import argparse
 
 # Mapping of 3-letter amino acid codes to 1-letter codes
 AMINO_ACIDS = {
@@ -40,9 +41,16 @@ def load_transcripts(csv_path):
 
 def main():
     start_time = time.time()
-    csv_path = "/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/ensembl_gene_mapping.csv"
-    variant_path = "/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/variant_summary.txt.gz"
-    output_path = "/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/Protein_half_lifes_mutated.csv"
+    
+    parser = argparse.ArgumentParser(description="Mutate sequences based on variants.")
+    parser.add_argument("--csv_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/ensembl_gene_mapping.csv", help="Path to the gene mapping CSV file")
+    parser.add_argument("--variant_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/variant_summary.txt.gz", help="Path to the variant summary txt.gz file")
+    parser.add_argument("--output_path", type=str, default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/Protein_half_lifes_mutated.csv", help="Path to save the mutated sequences CSV file")
+    args = parser.parse_args()
+
+    csv_path = args.csv_path
+    variant_path = args.variant_path
+    output_path = args.output_path
     
     print("1. Loading transcripts mapping...")
     transcripts_by_gene, original_fieldnames = load_transcripts(csv_path)
@@ -52,7 +60,10 @@ def main():
         return
         
     print(f"\n2. Setting up output CSV: {output_path}...")
-    output_fieldnames = original_fieldnames + ["clinvar_id", "clinical_significance", "mutated_AA", "phenotype"]
+    output_fieldnames = original_fieldnames + [
+        "clinvar_id", "clinical_significance", "mutated_AA", "phenotype", 
+        "variant_type", "mutation_type"
+    ]
     
     # Regular expression to extract p.XxxPosYyy
     mutation_regex = re.compile(r'p\.([A-Z][a-z]{2})(\d+)([A-Z][a-z]{2})')
@@ -74,11 +85,12 @@ def main():
             sig_idx = header.index("ClinicalSignificance")
             variation_id_idx = header.index("VariationID")
             phenotype_idx = header.index("PhenotypeList")
+            type_idx = header.index("Type")
             
             for line in f:
                 total_scanned_variants += 1
                 cols = line.strip().split('\t')
-                if len(cols) <= max(gene_idx, name_idx, assembly_idx, sig_idx, variation_id_idx, phenotype_idx):
+                if len(cols) <= max(gene_idx, name_idx, assembly_idx, sig_idx, variation_id_idx, phenotype_idx, type_idx):
                     continue
                     
                 # 1. Filter for GRCh38 assembly
@@ -134,7 +146,11 @@ def main():
                             
                             if actual_aa == ref_aa:
                                 # Apply mutation
-                                mutated_sequence = sequence[:pos-1] + alt_aa + sequence[pos:]
+                                if alt_aa == '*':
+                                    # Nonsense mutation: truncate everything from the stop codon onwards
+                                    mutated_sequence = sequence[:pos-1]
+                                else:
+                                    mutated_sequence = sequence[:pos-1] + alt_aa + sequence[pos:]
                                 
                                 # Construct the output row
                                 new_row = dict(row)
@@ -142,6 +158,8 @@ def main():
                                 new_row["clinical_significance"] = classification
                                 new_row["mutated_AA"] = mutated_sequence
                                 new_row["phenotype"] = cols[phenotype_idx]
+                                new_row["variant_type"] = cols[type_idx]
+                                new_row["mutation_type"] = "nonsense" if alt_aa == '*' else "missense"
                                 
                                 # Write to output CSV
                                 writer.writerow(new_row)
