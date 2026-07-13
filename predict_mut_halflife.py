@@ -145,7 +145,7 @@ def main():
     df['pred_mut_halflife'] = mean_preds
 
     # Select requested columns
-    output_cols = ['tid', 'gene', 'variant_id', 'clinical_significance', 'halflife', 'pred_mut_halflife']
+    output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'halflife', 'pred_mut_halflife']
     for col in output_cols:
         if col not in df.columns:
             raise KeyError(f"Fehler: Die benötigte Spalte '{col}' existiert nicht in der Eingabe-CSV.")
