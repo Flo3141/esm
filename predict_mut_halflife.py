@@ -58,6 +58,10 @@ def main():
     if "mutated_AA" not in df.columns:
         raise KeyError("Fehler: Die Spalte 'mutated_AA' fehlt in der Eingabe-CSV.")
 
+    # Rename variant_id to clinvar_id if present
+    if "variant_id" in df.columns:
+        df = df.rename(columns={"variant_id": "clinvar_id"})
+
     print(f"Anzahl Zeilen für Vorhersage: {len(df)}")
     
     # Parse fold indices
@@ -133,7 +137,7 @@ def main():
         # Save individual fold predictions
         df_fold = df.copy()
         df_fold['pred_mut_halflife'] = predictions
-        output_cols = ['tid', 'gene', 'variant_id', 'clinical_significance', 'halflife', 'pred_mut_halflife']
+        output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'halflife', 'pred_mut_halflife']
         for col in output_cols:
             if col not in df_fold.columns:
                 raise KeyError(f"Fehler: Die benötigte Spalte '{col}' existiert nicht in der Eingabe-CSV.")
@@ -159,7 +163,7 @@ def main():
     df['pred_mut_halflife'] = mean_preds
 
     # Select requested columns
-    output_cols = ['tid', 'gene', 'variant_id', 'clinical_significance', 'halflife', 'pred_mut_halflife']
+    output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'halflife', 'pred_mut_halflife']
     for col in output_cols:
         if col not in df.columns:
             raise KeyError(f"Fehler: Die benötigte Spalte '{col}' existiert nicht in der Eingabe-CSV.")
