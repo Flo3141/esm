@@ -61,7 +61,7 @@ def main():
         
     print(f"\n2. Setting up output CSV: {output_path}...")
     output_fieldnames = original_fieldnames + [
-        "variant_id", "clinical_significance", "mutated_AA", "phenotype", 
+        "clinvar_id", "clinical_significance", "mutated_AA", "phenotype", 
         "variant_type", "mutation_type"
     ]
     
@@ -154,7 +154,7 @@ def main():
                                 
                                 # Construct the output row
                                 new_row = dict(row)
-                                new_row["variant_id"] = variant_id
+                                new_row["clinvar_id"] = variant_id
                                 new_row["clinical_significance"] = classification
                                 new_row["mutated_AA"] = mutated_sequence
                                 new_row["phenotype"] = cols[phenotype_idx]
