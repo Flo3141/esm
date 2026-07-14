@@ -137,7 +137,7 @@ def main():
         # Save individual fold predictions
         df_fold = df.copy()
         df_fold['pred_mut_halflife'] = predictions
-        output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'halflife', 'pred_mut_halflife']
+        output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'pred_mut_halflife']
         for col in output_cols:
             if col not in df_fold.columns:
                 raise KeyError(f"Fehler: Die benötigte Spalte '{col}' existiert nicht in der Eingabe-CSV.")
