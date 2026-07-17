@@ -744,40 +744,19 @@ def plot_variant_consequence(df_plot, plots_folder, scale='linear'):
 def run_analysis(args):
     print("\n==================== Starte Varianten-Vorhersage-Analyse ====================")
     
-    combined_val_path = os.path.join(args.output_dir, "wild_type_predictions", "val_predictions_all_folds.csv")
-    if not os.path.exists(combined_val_path):
-        raise FileNotFoundError(f"Fehler: {combined_val_path} existiert nicht. Bitte lassen Sie zuerst die Validierungsvorhersagen laufen.")
+    # Compile WT predictions from both validation and test sets
+    df_wt = compile_protein_wt_predictions(args)
+    if df_wt.empty:
+        raise FileNotFoundError("Fehler: Keine Wild-Type Vorhersagen gefunden.")
         
     if not os.path.exists(args.mutated_csv_path):
         raise FileNotFoundError(f"Fehler: {args.mutated_csv_path} existiert nicht.")
         
-    val_df = pd.read_csv(combined_val_path)
     mut_df = pd.read_csv(args.mutated_csv_path)
-    
-    print(f"Lade Wild-Type Vorhersagen: {len(val_df)} Zeilen")
     print(f"Lade Mutierte Vorhersagen: {len(mut_df)} Zeilen")
     
-    # Merge on tid
-    # Handle possible differences in WT prediction column names ('prediction'/'pred_halflife' and 'label'/'halflife')
-    val_wt_cols = ['tid', 'gene']
-    if 'prediction' in val_df.columns:
-        val_wt_cols.append('prediction')
-    elif 'pred_halflife' in val_df.columns:
-        val_df = val_df.rename(columns={'pred_halflife': 'prediction'})
-        val_wt_cols.append('prediction')
-    else:
-        raise KeyError("Fehler: Weder 'prediction' noch 'pred_halflife' in Wild-Type Vorhersagen gefunden.")
-        
-    if 'label' in val_df.columns:
-        val_wt_cols.append('label')
-    elif 'halflife' in val_df.columns:
-        val_df = val_df.rename(columns={'halflife': 'label'})
-        val_wt_cols.append('label')
-    else:
-        raise KeyError("Fehler: Weder 'label' noch 'halflife' in Wild-Type Vorhersagen gefunden.")
-
     # Handle possible differences in mutated prediction column names ('pred_mut_mean' or 'pred_mut_halflife')
-    mut_cols = ['tid', 'clinvar_id', 'clinical_significance']
+    mut_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance']
     if 'pred_mut_mean' in mut_df.columns:
         mut_cols.append('pred_mut_mean')
     elif 'pred_mut_halflife' in mut_df.columns:
@@ -786,8 +765,9 @@ def run_analysis(args):
     else:
         raise KeyError("Fehler: Weder 'pred_mut_mean' noch 'pred_mut_halflife' in Mutanten-Vorhersagen gefunden.")
 
+    # Merge WT predictions (combining validation & test) and mutant predictions on tid
     df_merged = pd.merge(
-        val_df[val_wt_cols],
+        df_wt,
         mut_df[mut_cols],
         on='tid'
     )
@@ -798,7 +778,7 @@ def run_analysis(args):
         return
         
     # Calculate delta using the standardized pred_mut_mean
-    df_merged['delta_halflife'] = df_merged['pred_mut_mean'] - df_merged['prediction']
+    df_merged['delta_halflife'] = df_merged['pred_mut_mean'] - df_merged['pred_wt']
     
     # Save the dataframe with all predicted half-lives of WT and variants
     variant_predictions_dir = os.path.join(args.output_dir, "variant_predictions")
@@ -807,12 +787,12 @@ def run_analysis(args):
     
     df_save = df_merged.copy()
     # Add alias columns to align with the RNA results structure
-    df_save['pred_wt'] = df_save['prediction']
+    df_save['halflife_gt'] = df_save['label_wt']
     
     # Reorder columns for clean presentation, matching RNA results layout
     cols_order = [
         'clinvar_id', 'clinical_significance', 'tid', 'gene',
-        'pred_wt', 'pred_mut_mean', 'delta_halflife', 'label'
+        'pred_wt', 'pred_mut_mean', 'delta_halflife', 'halflife_gt'
     ]
     df_save = df_save[cols_order]
     
@@ -898,7 +878,6 @@ def run_analysis(args):
 
         # --- New WT vs GT Plots (Validation & Test combined and split) ---
         try:
-            df_wt = compile_protein_wt_predictions(args)
             if not df_wt.empty:
                 for scale in ['linear', 'log2']:
                     plot_wt_combined_scatter(df_wt, plots_dir, scale=scale)
@@ -909,14 +888,13 @@ def run_analysis(args):
             print(f"Warnung: Die neuen WT-Plots konnten nicht erzeugt werden: {wt_err}")
             import traceback
             traceback.print_exc()
-
+ 
         # --- New Variant Plots (Significance & Consequence) ---
         try:
             # Prepare data for new variant plots
             df_plot = df_merged.copy()
-            df_plot['pred_wt'] = df_plot['prediction']
             df_plot['category'] = df_plot['clinical_significance']
-            df_plot['delta'] = df_plot['pred_mut_mean'] - df_plot['pred_wt']
+            df_plot['delta'] = df_plot['delta_halflife']
             
             # Merge mutated metadata to get consequence mapping
             mutated_csv_meta = "/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/Protein_half_lifes_mutated.csv"
