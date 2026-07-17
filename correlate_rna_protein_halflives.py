@@ -356,7 +356,7 @@ def main():
     protein_mut_df = pd.read_csv(args.protein_mut_csv)
     print(f"Protein-Mutations-Datensatz geladen: {len(protein_mut_df)} Zeilen")
     
-    required_prot_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'pred_mut_halflife']
+    required_prot_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'pred_mut_mean']
     for col in required_prot_cols:
         if col not in protein_mut_df.columns:
             raise KeyError(f"Fehler: Die Spalte '{col}' fehlt in der Protein-Mutations-CSV.")
@@ -386,7 +386,7 @@ def main():
         print(f"Gemerged mit WT-Proteinen auf 'tid': {len(df_merged)} Zeilen")
         
         # Calculate delta_protein
-        df_merged['delta_protein'] = df_merged['pred_mut_halflife'] - df_merged['pred_wt_protein']
+        df_merged['delta_protein'] = df_merged['pred_mut_mean'] - df_merged['pred_wt_protein']
     else:
         print("Hinweis: Da keine WT-Proteine geladen werden konnten, wird 'delta_protein' nicht berechnet.")
         df_merged['pred_wt_protein'] = np.nan
@@ -397,7 +397,7 @@ def main():
     final_cols = [
         'clinvar_id', 'clinical_significance', 'tid', 'gene',
         'pred_wt_rna', 'pred_mut_rna', 'delta_rna',
-        'pred_wt_protein', 'pred_mut_halflife', 'delta_protein', 'label_wt_protein'
+        'pred_wt_protein', 'pred_mut_mean', 'delta_protein', 'label_wt_protein'
     ]
     # Filter to only columns that actually exist (handling any edge cases)
     final_cols = [c for c in final_cols if c in df_merged.columns]
@@ -415,14 +415,14 @@ def main():
     print("KORRELATIONSANALYSE (Gesamt und nach clinical_significance)")
     print("="*60)
     
-    # 5a. Mutated predictions correlation (pred_mut_rna vs pred_mut_halflife)
+    # 5a. Mutated predictions correlation (pred_mut_rna vs pred_mut_mean)
     print("\n1. Korrelation der vorhergesagten Mutations-Halbwertszeiten:")
-    calculate_correlations(df_final, 'pred_mut_rna', 'pred_mut_halflife', label="Gesamt (mutiert)")
+    calculate_correlations(df_final, 'pred_mut_rna', 'pred_mut_mean', label="Gesamt (mutiert)")
     
     # Grouped by significance
     for sig in df_final['clinical_significance'].dropna().unique():
         df_sig = df_final[df_final['clinical_significance'] == sig]
-        calculate_correlations(df_sig, 'pred_mut_rna', 'pred_mut_halflife', label=f"{sig} (mutiert)")
+        calculate_correlations(df_sig, 'pred_mut_rna', 'pred_mut_mean', label=f"{sig} (mutiert)")
         
     # 5b. Delta predictions correlation (delta_rna vs delta_protein)
     if 'delta_protein' in df_final.columns and not df_final['delta_protein'].isna().all():

@@ -136,8 +136,8 @@ def main():
         
         # Save individual fold predictions
         df_fold = df.copy()
-        df_fold['pred_mut_halflife'] = predictions
-        output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'pred_mut_halflife']
+        df_fold['pred_mut_mean'] = predictions
+        output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'pred_mut_mean']
         for col in output_cols:
             if col not in df_fold.columns:
                 raise KeyError(f"Fehler: Die benötigte Spalte '{col}' existiert nicht in der Eingabe-CSV.")
@@ -160,10 +160,10 @@ def main():
     mean_preds = np.mean(preds_arr, axis=0)
 
     # Add prediction to dataframe
-    df['pred_mut_halflife'] = mean_preds
+    df['pred_mut_mean'] = mean_preds
 
     # Select requested columns
-    output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'pred_mut_halflife']
+    output_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'pred_mut_mean']
     for col in output_cols:
         if col not in df.columns:
             raise KeyError(f"Fehler: Die benötigte Spalte '{col}' existiert nicht in der Eingabe-CSV.")

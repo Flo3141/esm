@@ -776,9 +776,19 @@ def run_analysis(args):
     else:
         raise KeyError("Fehler: Weder 'label' noch 'halflife' in Wild-Type Vorhersagen gefunden.")
 
+    # Handle possible differences in mutated prediction column names ('pred_mut_mean' or 'pred_mut_halflife')
+    mut_cols = ['tid', 'clinvar_id', 'clinical_significance']
+    if 'pred_mut_mean' in mut_df.columns:
+        mut_cols.append('pred_mut_mean')
+    elif 'pred_mut_halflife' in mut_df.columns:
+        mut_df = mut_df.rename(columns={'pred_mut_halflife': 'pred_mut_mean'})
+        mut_cols.append('pred_mut_mean')
+    else:
+        raise KeyError("Fehler: Weder 'pred_mut_mean' noch 'pred_mut_halflife' in Mutanten-Vorhersagen gefunden.")
+
     df_merged = pd.merge(
         val_df[val_wt_cols],
-        mut_df[['tid', 'clinvar_id', 'clinical_significance', 'pred_mut_halflife']],
+        mut_df[mut_cols],
         on='tid'
     )
     
@@ -787,8 +797,8 @@ def run_analysis(args):
         print("Warnung: Keine Übereinstimmungen auf 'tid' zwischen Wild-Type und mutierten Sequenzen gefunden.")
         return
         
-    # Calculate delta
-    df_merged['delta_halflife'] = df_merged['pred_mut_halflife'] - df_merged['prediction']
+    # Calculate delta using the standardized pred_mut_mean
+    df_merged['delta_halflife'] = df_merged['pred_mut_mean'] - df_merged['prediction']
     
     # Save the dataframe with all predicted half-lives of WT and variants
     variant_predictions_dir = os.path.join(args.output_dir, "variant_predictions")
@@ -796,9 +806,15 @@ def run_analysis(args):
     processed_results_path = os.path.join(variant_predictions_dir, "processed_mutation_results.csv")
     
     df_save = df_merged.copy()
-    # Add alias columns to align with the RNA results structure if needed
+    # Add alias columns to align with the RNA results structure
     df_save['pred_wt'] = df_save['prediction']
-    df_save['pred_mut_mean'] = df_save['pred_mut_halflife']
+    
+    # Reorder columns for clean presentation, matching RNA results layout
+    cols_order = [
+        'clinvar_id', 'clinical_significance', 'tid', 'gene',
+        'pred_wt', 'pred_mut_mean', 'delta_halflife', 'label'
+    ]
+    df_save = df_save[cols_order]
     
     df_save.to_csv(processed_results_path, index=False)
     print(f"Gemergeder DataFrame mit Vorhersagen unter {processed_results_path} gespeichert.")
@@ -899,7 +915,6 @@ def run_analysis(args):
             # Prepare data for new variant plots
             df_plot = df_merged.copy()
             df_plot['pred_wt'] = df_plot['prediction']
-            df_plot['pred_mut_mean'] = df_plot['pred_mut_halflife']
             df_plot['category'] = df_plot['clinical_significance']
             df_plot['delta'] = df_plot['pred_mut_mean'] - df_plot['pred_wt']
             
