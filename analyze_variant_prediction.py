@@ -907,8 +907,8 @@ def run_analysis(args):
             mutated_csv_meta = "/beegfs/prj/RNA_NLP/protein_half_lives/esm_data/Protein_half_lifes_mutated.csv"
             if mutated_csv_meta and os.path.exists(mutated_csv_meta):
                 print(f"Loading mutated metadata from: {mutated_csv_meta} to map mutation consequences...")
-                df_mut_meta = pd.read_csv(mutated_csv_meta)[['tid', 'variant_id', 'mutation_type']].drop_duplicates()
-                df_plot = pd.merge(df_plot, df_mut_meta, on=['tid', 'variant_id'], how='left')
+                df_mut_meta = pd.read_csv(mutated_csv_meta)[['tid', 'clinvar_id', 'mutation_type']].drop_duplicates()
+                df_plot = pd.merge(df_plot, df_mut_meta, on=['tid', 'clinvar_id'], how='left')
                 df_plot['consequence_category'] = df_plot['mutation_type'].apply(map_consequence_category)
             else:
                 print("Warning: Mutated metadata file (Protein_half_lifes_mutated.csv) not found. Consequence plots will be skipped.")
