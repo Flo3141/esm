@@ -142,23 +142,6 @@ def generate_validation_predictions(args, tokenizer, folds):
     
     return combined_val_df
 
-def locate_mutated_metadata(csv_path):
-    """
-    Tries to locate the mutated metadata file (Protein_half_lifes_mutated.csv)
-    relative to the main CSV path.
-    """
-    dirname = os.path.dirname(csv_path)
-    candidates = [
-        os.path.join(dirname, "Protein_half_lifes_mutated.csv"),
-        os.path.join(dirname, "esm_data", "Protein_half_lifes_mutated.csv"),
-        csv_path.replace("Protein_half_lifes.csv", "Protein_half_lifes_mutated.csv"),
-        csv_path.replace("Protein_half_lifes.csv", os.path.join("esm_data", "Protein_half_lifes_mutated.csv")),
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c
-    return None
-
 def compile_protein_wt_predictions(args):
     """
     Loads wild type predictions and ground truths for both validation and test sets,
@@ -775,8 +758,26 @@ def run_analysis(args):
     print(f"Lade Mutierte Vorhersagen: {len(mut_df)} Zeilen")
     
     # Merge on tid
+    # Handle possible differences in WT prediction column names ('prediction'/'pred_halflife' and 'label'/'halflife')
+    val_wt_cols = ['tid', 'gene']
+    if 'prediction' in val_df.columns:
+        val_wt_cols.append('prediction')
+    elif 'pred_halflife' in val_df.columns:
+        val_df = val_df.rename(columns={'pred_halflife': 'prediction'})
+        val_wt_cols.append('prediction')
+    else:
+        raise KeyError("Fehler: Weder 'prediction' noch 'pred_halflife' in Wild-Type Vorhersagen gefunden.")
+        
+    if 'label' in val_df.columns:
+        val_wt_cols.append('label')
+    elif 'halflife' in val_df.columns:
+        val_df = val_df.rename(columns={'halflife': 'label'})
+        val_wt_cols.append('label')
+    else:
+        raise KeyError("Fehler: Weder 'label' noch 'halflife' in Wild-Type Vorhersagen gefunden.")
+
     df_merged = pd.merge(
-        val_df[['tid', 'gene', 'halflife', 'pred_halflife']],
+        val_df[val_wt_cols],
         mut_df[['tid', 'clinvar_id', 'clinical_significance', 'pred_mut_halflife']],
         on='tid'
     )
@@ -788,6 +789,19 @@ def run_analysis(args):
         
     # Calculate delta
     df_merged['delta_halflife'] = df_merged['pred_mut_halflife'] - df_merged['prediction']
+    
+    # Save the dataframe with all predicted half-lives of WT and variants
+    variant_predictions_dir = os.path.join(args.output_dir, "variant_predictions")
+    os.makedirs(variant_predictions_dir, exist_ok=True)
+    processed_results_path = os.path.join(variant_predictions_dir, "processed_mutation_results.csv")
+    
+    df_save = df_merged.copy()
+    # Add alias columns to align with the RNA results structure if needed
+    df_save['pred_wt'] = df_save['prediction']
+    df_save['pred_mut_mean'] = df_save['pred_mut_halflife']
+    
+    df_save.to_csv(processed_results_path, index=False)
+    print(f"Gemergeder DataFrame mit Vorhersagen unter {processed_results_path} gespeichert.")
     
     benign = df_merged[df_merged['clinical_significance'] == 'Benign']
     pathogenic = df_merged[df_merged['clinical_significance'] == 'Pathogenic']
