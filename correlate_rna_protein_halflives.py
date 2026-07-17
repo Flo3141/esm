@@ -1,9 +1,27 @@
 #!/usr/bin/env python3
 import os
+import sys
 import argparse
 import pandas as pd
 import numpy as np
 from scipy.stats import pearsonr, spearmanr, mannwhitneyu
+
+class DualLogger:
+    """Redirects stdout to both console and a log file."""
+    def __init__(self, filepath):
+        self.terminal = sys.stdout
+        self.log = open(filepath, "w", encoding="utf-8")
+        
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+    def close(self):
+        self.log.close()
 
 # Set matplotlib backend for cluster/headless environments
 import matplotlib
@@ -303,6 +321,11 @@ def main():
         
     os.makedirs(args.output_dir, exist_ok=True)
     
+    # Redirect stdout to both console and a text file in output_dir
+    log_file_path = os.path.join(args.output_dir, "correlation_results.txt")
+    logger = DualLogger(log_file_path)
+    sys.stdout = logger
+    
     # ----------------------------------------------------
     # 1. Load RNA mutation predictions
     # ----------------------------------------------------
@@ -435,6 +458,11 @@ def main():
             traceback.print_exc()
             
     print("\nAnalyse erfolgreich abgeschlossen!")
+    
+    # Restore stdout and close logger
+    sys.stdout = logger.terminal
+    logger.close()
+    print(f"\nTextanalyse wurde unter '{log_file_path}' gespeichert.")
 
 if __name__ == "__main__":
     main()
