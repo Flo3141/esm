@@ -307,7 +307,7 @@ def main():
     # 1. Load RNA mutation predictions
     # ----------------------------------------------------
     print(f"\nLade RNA Mutierte Vorhersagen von: {args.rna_csv}")
-    rna_df = pd.read_csv(args.rna_csv)
+    rna_df = pd.read_csv(args.rna_csv, sep='\t')
     print(f"RNA-Datensatz geladen: {len(rna_df)} Zeilen")
     
     # Validate columns
