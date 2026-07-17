@@ -29,74 +29,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def compile_protein_wt_predictions(protein_wt_dir, protein_splits_path):
-    """
-    Loads wild-type predictions for validation and test sets,
-    replicating the logic of compile_protein_wt_predictions in analyze_variant_prediction.py.
-    """
-    print("Compiling Protein Wild-Type predictions and ground truths...")
-    
-    # 1. Load the splitting info
-    if not os.path.exists(protein_splits_path):
-        print(f"Warning: split file {protein_splits_path} not found. Cannot determine splits.")
-        df_splits = pd.DataFrame()
-    else:
-        print(f"Loading split data from: {protein_splits_path}")
-        df_splits = pd.read_csv(protein_splits_path)[['tid', 'split']].drop_duplicates()
-        
-    val_path = os.path.join(protein_wt_dir, "val_predictions_all_folds.csv")
-    test_path = os.path.join(protein_wt_dir, "test_predictions_average.csv")
-    
-    df_val = pd.DataFrame()
-    if os.path.exists(val_path):
-        print(f"Loading Val WT Predictions from: {val_path}")
-        df_val = pd.read_csv(val_path)
-        df_val['split_source'] = 'val'
-    else:
-        print(f"Warning: Validation prediction file {val_path} not found.")
-        
-    df_test = pd.DataFrame()
-    if os.path.exists(test_path):
-        print(f"Loading Test WT Predictions from: {test_path}")
-        df_test = pd.read_csv(test_path)
-        df_test['split_source'] = 'test'
-    else:
-        print(f"Note: Test WT prediction file {test_path} not found (optional).")
-        
-    # Combine predictions
-    dfs_to_concat = []
-    if not df_val.empty:
-        dfs_to_concat.append(df_val[['tid', 'prediction', 'label']])
-    if not df_test.empty:
-        dfs_to_concat.append(df_test[['tid', 'prediction', 'label']])
-        
-    if not dfs_to_concat:
-        print("Warning: No wild-type prediction files found. WT protein values will not be available.")
-        return pd.DataFrame()
-        
-    df_wt = pd.concat(dfs_to_concat, ignore_index=True)
-    df_wt = df_wt.drop_duplicates(subset=['tid'])
-    
-    # Merge splits info
-    if not df_splits.empty:
-        df_wt = pd.merge(df_wt, df_splits, on='tid', how='left')
-    else:
-        # Default split based on source if splits file not found
-        df_wt['split'] = df_wt['split_source'].apply(lambda x: 8 if x == 'test' else 0)
-        
-    # Rename columns to avoid collision with RNA column names
-    df_wt = df_wt.rename(columns={
-        'prediction': 'pred_wt_protein',
-        'label': 'label_wt_protein',
-        'split': 'data_split'
-    })
-    
-    # Keep only matched records
-    df_wt = df_wt.dropna(subset=['pred_wt_protein']).copy()
-    
-    print(f"Protein WT compilation complete. Found predictions for {len(df_wt)} transcripts (tids).")
-    return df_wt
-
 def calculate_correlations(df, col_x, col_y, label="Dataset"):
     """Helper to calculate and print Pearson and Spearman correlations."""
     df_clean = df.dropna(subset=[col_x, col_y])
@@ -276,22 +208,10 @@ def main():
         help="Pfad zur RNA mutation results CSV (Saluki predictions)"
     )
     parser.add_argument(
-        "--protein_mut_csv", 
+        "--protein_csv", 
         type=str, 
-        default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output/variant_predictions/variants_prediction_average.csv",
-        help="Pfad zur Protein mutation prediction average CSV (ESM predictions)"
-    )
-    parser.add_argument(
-        "--protein_splits_csv", 
-        type=str, 
-        default="/beegfs/prj/RNA_NLP/protein_half_lives/Protein_half_lifes.csv",
-        help="Pfad zur Protein_half_lifes.csv (Wild-Type split mapping)"
-    )
-    parser.add_argument(
-        "--protein_wt_dir", 
-        type=str, 
-        default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output/wild_type_predictions",
-        help="Pfad zum Verzeichnis mit Wild-Type Protein Vorhersagen (val_predictions_all_folds.csv und test_predictions_average.csv)"
+        default="/beegfs/prj/RNA_NLP/protein_half_lives/esm_output/variant_predictions/processed_mutation_results.csv",
+        help="Pfad zur Protein mutation results CSV (processed_mutation_results.csv)"
     )
     parser.add_argument(
         "--output_dir", 
@@ -304,17 +224,11 @@ def main():
     
     # Verify input files exist
     inputs_ok = True
-    for path_name, path_val in [("RNA CSV", args.rna_csv), 
-                                ("Protein Mutated CSV", args.protein_mut_csv), 
-                                ("Protein Splits CSV", args.protein_splits_csv)]:
+    for path_name, path_val in [("RNA CSV", args.rna_csv), ("Protein CSV", args.protein_csv)]:
         if not os.path.exists(path_val):
             print(f"Fehler: Die Datei '{path_name}' unter '{path_val}' existiert nicht.")
             inputs_ok = False
             
-    if not os.path.exists(args.protein_wt_dir):
-        print(f"Fehler: Das Protein Wild-Type Verzeichnis unter '{args.protein_wt_dir}' existiert nicht.")
-        inputs_ok = False
-        
     if not inputs_ok:
         print("\nAbbruch: Ein oder mehrere benötigte Pfade wurden nicht gefunden.")
         return
@@ -350,48 +264,36 @@ def main():
     rna_df_clean['delta_rna'] = rna_df_clean['pred_mut_rna'] - rna_df_clean['pred_wt_rna']
     
     # ----------------------------------------------------
-    # 2. Load Protein mutated predictions
+    # 2. Load Protein predictions from processed_mutation_results.csv
     # ----------------------------------------------------
-    print(f"\nLade Protein Mutierte Vorhersagen von: {args.protein_mut_csv}")
-    protein_mut_df = pd.read_csv(args.protein_mut_csv)
-    print(f"Protein-Mutations-Datensatz geladen: {len(protein_mut_df)} Zeilen")
+    print(f"\nLade Protein Vorhersagen von: {args.protein_csv}")
+    protein_df = pd.read_csv(args.protein_csv)
+    print(f"Protein-Datensatz geladen: {len(protein_df)} Zeilen")
     
-    required_prot_cols = ['tid', 'gene', 'clinvar_id', 'clinical_significance', 'pred_mut_mean']
+    required_prot_cols = ['clinvar_id', 'clinical_significance', 'tid', 'gene', 'pred_wt', 'pred_mut_mean', 'delta_halflife', 'halflife_gt']
     for col in required_prot_cols:
-        if col not in protein_mut_df.columns:
-            raise KeyError(f"Fehler: Die Spalte '{col}' fehlt in der Protein-Mutations-CSV.")
+        if col not in protein_df.columns:
+            raise KeyError(f"Fehler: Die Spalte '{col}' fehlt in der Protein-CSV.")
             
-    protein_mut_clean = protein_mut_df[required_prot_cols].copy()
+    # Extract, rename columns to align with previous merged data format
+    protein_df_clean = protein_df[required_prot_cols].copy()
+    protein_df_clean = protein_df_clean.rename(columns={
+        'pred_wt': 'pred_wt_protein',
+        'delta_halflife': 'delta_protein',
+        'halflife_gt': 'label_wt_protein'
+    })
     
     # ----------------------------------------------------
-    # 3. Compile Protein WT predictions
-    # ----------------------------------------------------
-    protein_wt_df = compile_protein_wt_predictions(args.protein_wt_dir, args.protein_splits_csv)
-    
-    # ----------------------------------------------------
-    # 4. Merge Datasets
+    # 3. Merge Datasets
     # ----------------------------------------------------
     print("\nFühre Merges durch...")
-    # Step 4a: Inner Join on clinvar_id
-    df_merged = pd.merge(rna_df_clean, protein_mut_clean, on='clinvar_id', how='inner')
+    # Merge RNA and Protein predictions on clinvar_id
+    df_merged = pd.merge(rna_df_clean, protein_df_clean, on='clinvar_id', how='inner')
     print(f"Gemerged auf 'clinvar_id' (inner join): {len(df_merged)} Zeilen")
     
     if len(df_merged) == 0:
         print("Abbruch: Keine übereinstimmenden ClinVar-IDs gefunden.")
         return
-        
-    # Step 4b: Merge WT Protein predictions on tid
-    if not protein_wt_df.empty:
-        df_merged = pd.merge(df_merged, protein_wt_df[['tid', 'pred_wt_protein', 'label_wt_protein']], on='tid', how='left')
-        print(f"Gemerged mit WT-Proteinen auf 'tid': {len(df_merged)} Zeilen")
-        
-        # Calculate delta_protein
-        df_merged['delta_protein'] = df_merged['pred_mut_mean'] - df_merged['pred_wt_protein']
-    else:
-        print("Hinweis: Da keine WT-Proteine geladen werden konnten, wird 'delta_protein' nicht berechnet.")
-        df_merged['pred_wt_protein'] = np.nan
-        df_merged['label_wt_protein'] = np.nan
-        df_merged['delta_protein'] = np.nan
         
     # Reorder columns for clean presentation
     final_cols = [
