@@ -263,6 +263,16 @@ def main():
     # Compute delta_rna
     rna_df_clean['delta_rna'] = rna_df_clean['pred_mut_rna'] - rna_df_clean['pred_wt_rna']
     
+    # Debugging NAs in RNA data
+    print("\n--- [DEBUG] RNA Input NA Check ---")
+    print(f"Total rows in rna_df_clean: {len(rna_df_clean)}")
+    for col in rna_df_clean.columns:
+        na_count = rna_df_clean[col].isna().sum()
+        print(f"  Column '{col}': {na_count} NAs ({na_count/len(rna_df_clean)*100:.2f}%)")
+    if rna_df_clean.isna().any().any():
+        print("  Rows with any NA in RNA data (first 5):")
+        print(rna_df_clean[rna_df_clean.isna().any(axis=1)].head(5).to_string())
+    
     # ----------------------------------------------------
     # 2. Load Protein predictions from processed_mutation_results.csv
     # ----------------------------------------------------
@@ -282,6 +292,16 @@ def main():
         'pred_mut_mean': 'pred_mut_protein',
         'delta_halflife': 'delta_protein'
     })
+    
+    # Debugging NAs in Protein data
+    print("\n--- [DEBUG] Protein Input NA Check ---")
+    print(f"Total rows in protein_df_clean: {len(protein_df_clean)}")
+    for col in protein_df_clean.columns:
+        na_count = protein_df_clean[col].isna().sum()
+        print(f"  Column '{col}': {na_count} NAs ({na_count/len(protein_df_clean)*100:.2f}%)")
+    if protein_df_clean.isna().any().any():
+        print("  Rows with any NA in Protein data (first 5):")
+        print(protein_df_clean[protein_df_clean.isna().any(axis=1)].head(5).to_string())
     
     # ----------------------------------------------------
     # 3. Merge Datasets
@@ -305,6 +325,22 @@ def main():
     final_cols = [c for c in final_cols if c in df_merged.columns]
     df_final = df_merged[final_cols].copy()
     
+    # Debugging NAs in Final output DataFrame
+    print("\n--- [DEBUG] Final Output NA Check ---")
+    print(f"Total rows in df_final: {len(df_final)}")
+    for col in df_final.columns:
+        na_count = df_final[col].isna().sum()
+        print(f"  Column '{col}': {na_count} NAs ({na_count/len(df_final)*100:.2f}%)")
+    
+    # Show example rows with NAs in the final output
+    na_rows = df_final[df_final.isna().any(axis=1)]
+    if len(na_rows) > 0:
+        print(f"  Total rows with at least one NA in df_final: {len(na_rows)} ({len(na_rows)/len(df_final)*100:.2f}%)")
+        print("  Showing first 10 rows with NAs in the final merged data:")
+        print(na_rows.head(10).to_string())
+    else:
+        print("  No NAs found in the final merged DataFrame!")
+        
     # Save to CSV
     out_csv_path = os.path.join(args.output_dir, "rna_protein_merged_predictions.csv")
     df_final.to_csv(out_csv_path, index=False)
