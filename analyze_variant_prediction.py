@@ -468,7 +468,7 @@ def plot_wt_split_scatters(df_wt, plots_folder, scale='log2'):
             x_line = np.linspace(limits[0], limits[1], 100)
             y_line = compute_robust_regression_line(y_true, y_pred, x_line)
             
-        ax.plot(x_line, y_line, color='#E74C3C', linestyle='-', linewidth=2, label='Robust Regression')
+        ax.plot(x_line, y_line, color='#E74C3C', linestyle='--', linewidth=2, label='Robust Regression')
         
         # Textbox
         if scale == 'log2':
