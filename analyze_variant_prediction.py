@@ -13,6 +13,7 @@ matplotlib.use('Agg') # Force non-interactive backend for server compatibility
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import pearsonr, spearmanr
+from sklearn.linear_model import HuberRegressor
 
 class ProteinHalfLifeDataset(Dataset):
     """Dataset class for wild-type sequence validation inference."""
@@ -353,6 +354,33 @@ def plot_wt_combined_scatter(df_wt, plots_folder, scale='log2'):
     print(f"Saved combined WT scatter plot to: {out_path}")
     plt.close()
 
+def compute_robust_regression_line(x_fit, y_fit, x_eval):
+    """
+    Fits a robust linear regression (Huber loss) on (x_fit, y_fit) and evaluates it at x_eval.
+    Falls back to Siegel/Theil-Sen or ordinary least squares if needed.
+    """
+    mask = np.isfinite(x_fit) & np.isfinite(y_fit)
+    x_clean = x_fit[mask]
+    y_clean = y_fit[mask]
+    if len(x_clean) < 2:
+        return x_eval
+        
+    try:
+        from sklearn.linear_model import HuberRegressor
+        huber = HuberRegressor(max_iter=1000)
+        huber.fit(x_clean.reshape(-1, 1), y_clean)
+        return huber.predict(x_eval.reshape(-1, 1))
+    except Exception:
+        try:
+            from scipy.stats import siegelslopes
+            res = siegelslopes(y_clean, x_clean)
+            slope = getattr(res, 'slope', res[0])
+            intercept = getattr(res, 'intercept', res[1])
+            return slope * x_eval + intercept
+        except Exception:
+            slope, intercept = np.polyfit(x_clean, y_clean, 1)
+            return slope * x_eval + intercept
+
 def plot_wt_split_scatters(df_wt, plots_folder, scale='log2'):
     """Generates a 1x2 panel plot separating Validation and Test sets on a linear or log2 scale."""
     import matplotlib.ticker as ticker
@@ -430,8 +458,17 @@ def plot_wt_split_scatters(df_wt, plots_folder, scale='log2'):
             ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
             ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{x:g}"))
             
-        # Identity line
-        ax.plot(limits, limits, color='#34495E', linestyle='--', linewidth=1.5, label='y = x')
+        # Robust regression line (replaces diagonal identity line)
+        if scale == 'log2':
+            x_eval_log = np.linspace(np.log2(limits[0]), np.log2(limits[1]), 100)
+            y_eval_log = compute_robust_regression_line(y_true_log, y_pred_log, x_eval_log)
+            x_line = 2 ** x_eval_log
+            y_line = 2 ** y_eval_log
+        else:
+            x_line = np.linspace(limits[0], limits[1], 100)
+            y_line = compute_robust_regression_line(y_true, y_pred, x_line)
+            
+        ax.plot(x_line, y_line, color='#E74C3C', linestyle='-', linewidth=2, label='Robust Regression')
         
         # Textbox
         if scale == 'log2':
@@ -459,11 +496,11 @@ def plot_wt_split_scatters(df_wt, plots_folder, scale='log2'):
         ax.set_ylim(limits)
         ax.set_title(sub["title"], fontsize=13, fontweight='bold')
         if scale == 'log2':
-            ax.set_xlabel('Ground Truth Label (Log2 scale)', fontsize=11)
-            ax.set_ylabel('Predicted Value (Log2 scale)', fontsize=11)
+            ax.set_xlabel('Ground Truth Half-Life (hours, Log2 scale)', fontsize=11)
+            ax.set_ylabel('Predicted Half-Life (hours, Log2 scale)', fontsize=11)
         else:
-            ax.set_xlabel('Ground Truth Label', fontsize=11)
-            ax.set_ylabel('Predicted Value', fontsize=11)
+            ax.set_xlabel('Ground Truth Half-Life (hours)', fontsize=11)
+            ax.set_ylabel('Predicted Half-Life (hours)', fontsize=11)
         ax.legend(loc='upper right', frameon=True)
         
     title_suffix = ' (Log2 Scale)' if scale == 'log2' else ' (Linear Scale)'
